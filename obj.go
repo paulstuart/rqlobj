@@ -1,7 +1,7 @@
 package rqlobj
 
 import (
-	"database/sql"
+	//"database/sql"
 	"fmt"
 	"log"
 	"regexp"
@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	//rqlite "github.com/rqlite/gorqlite"
-	rqlite "github.com/paulstuart/gorqlite"
+	rqlite "github.com/rqlite/gorqlite"
+	//rqlite "github.com/paulstuart/gorqlite"
 )
 
 var (
@@ -25,21 +25,25 @@ var (
 	singleQuote = regexp.MustCompile("'")
 )
 
+/*
 // Common Rows object between rqlite and /pkg/database/sql
+// TODO: delete this?
 type Common interface {
 	Columns() []string
 	Next() bool
 	Scan(...interface{}) error
 }
+*/
 
 // SQLDB is a common interface for opening an sql db
-type SQLDB func(string) (*sql.DB, error)
+//type SQLDB func(string) (*sql.DB, error)
 
 // SetHandler returns a slice of value pointer interfaces
 // If there are no values to set it returns a nil instead
-type SetHandler func() []interface{}
+//type SetHandler func() []interface{}
 
 // fragment to rethink code structure
+/*
 func commonQuery(rows Common, fn SetHandler) error {
 	for rows.Next() {
 		dest := fn()
@@ -51,6 +55,11 @@ func commonQuery(rows Common, fn SetHandler) error {
 		}
 	}
 	return nil
+}
+*/
+type Fake struct {
+	Number int       `sql:"numb"`
+	TS     time.Time `sql:"ts"`
 }
 
 // DBU is a DatabaseUnit
@@ -309,10 +318,19 @@ func (db DBU) FindSelf(o DBObject) error {
 	return db.FindBy(o, o.KeyField(), o.Key())
 }
 
+type Scanner interface {
+	Scan(...interface{}) error
+	//Next() bool
+}
+
 // DBList is the interface for a list of db objects
 type DBList interface {
-	QueryString(extra string) string
-	Receivers() []interface{}
+	/*
+		QueryString(extra string) string
+		Receivers() []interface{}
+	*/
+	SQLGet(extra string) string
+	SQLResults(Scanner) error
 }
 
 // ListQuery updates a list of objects
@@ -325,6 +343,18 @@ func (db DBU) ListQuery(list DBList, extra string) error {
 		query := list.QueryString(extra)
 		return db.dbs.Query(fn, query)
 	*/
+	query := list.SQLGet("")
+	results, err := db.dbs.Query([]string{query})
+	if err != nil {
+		return err
+	}
+	for _, result := range results {
+		for result.Next() {
+			if err := list.SQLResults(&result); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 

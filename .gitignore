@@ -11,4 +11,8 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
+# vendor is for temporary edits using "go mod vendor"
 vendor/
+
+# our binaries
+rdbms/rdbms
