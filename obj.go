@@ -188,8 +188,8 @@ func (db DBU) Add(o DBObject) error {
 	return nil
 }
 
-// Save modified object in datastore
-func (db DBU) Save(o DBObject) error {
+// Update saves a modified object in the datastore
+func (db DBU) Update(o DBObject) error {
 	query := upsertQuery(o)
 	results, err := db.dbs.Write([]string{query})
 	for _, result := range results {
@@ -300,7 +300,7 @@ func typeinfo(list ...interface{}) string {
 // ListQuery updates a list of objects
 // TODO: handle args/vs no args for rqlite
 func (db DBU) ListQuery(list DBList, extra string) error {
-	query := list.SQLGet("")
+	query := list.SQLGet(extra)
 	results, err := db.dbs.Query([]string{query})
 	if err != nil {
 		return err
@@ -314,6 +314,7 @@ func (db DBU) ListQuery(list DBList, extra string) error {
 				return err
 			}
 			if err := list.SQLResults(fn); err != nil {
+				db.log.Println("scan error:", err)
 				return err
 			}
 		}

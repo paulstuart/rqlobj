@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -87,10 +88,23 @@ type _testStruct []testStruct
 func (s *_testStruct) SQLGet(extra string) string {
 	// TODO: any way to derive from _testStruct?
 	const fields = "id,name,kind,data,modified"
-	return fmt.Sprintf("select %s from %s", fields, tableName)
+	query := fmt.Sprintf("select %s from %s", fields, tableName)
+	if extra != "" {
+		if !strings.HasPrefix(strings.ToLower(extra), "limit") {
+			query += " where " + extra
+		} else {
+			query += " " + extra
+		}
+	}
+	return query
 }
 
-func (s *_testStruct) SQLResults(func(...interface{}) error) error {
+func (s *_testStruct) SQLResults(fn func(...interface{}) error) error {
+	var add testStruct
+	if err := fn((&add).MemberPointers()...); err != nil {
+		return err
+	}
+	*s = append(*s, add)
 	return nil
 }
 
@@ -124,6 +138,7 @@ func structDb(t *testing.T) DBU {
 
 func TestMain(m *testing.M) {
 	flag.BoolVar(&trace, "trace", false, "trace rqlite calls")
+	fmt.Println("TRACE:", trace)
 	flag.Parse()
 	os.Exit(m.Run())
 }
@@ -171,7 +186,7 @@ func TestDBObject(t *testing.T) {
 	}
 	s.Kind = 2015
 	s.Name = "Void droid"
-	if err := db.Save(s); err != nil {
+	if err := db.Update(s); err != nil {
 		t.Fatal(err)
 	}
 	z := testStruct{}
@@ -226,32 +241,20 @@ func dump(t *testing.T, db *sql.DB, query string, args ...interface{}) {
 	rows.Close()
 }
 
-func errLogger(t *testing.T) chan error {
-	e := make(chan error, 4096)
-	go func() {
-		for err := range e {
-			t.Error(err)
-		}
-	}()
-	return e
-}
-
 func TestListQuery(t *testing.T) {
 	db := structDb(t)
 	list := new(_testStruct)
-	//db.ListQuery(list, "(id % 2) = 0")
-	db.ListQuery(list, "")
+	fmt.Println("START")
+	if err := db.ListQuery(list, "limit 5"); err != nil {
+		t.Fatal(err)
+	}
 	for _, item := range *list {
 		t.Logf("ITEM:  %+v\n", item)
 	}
-}
-
-func TestRqliteQuery(t *testing.T) {
-	db := structDb(t)
-	list := new(_testStruct)
-	db.ListQuery(list, "(id % 2) = 0")
+	list = new(_testStruct)
+	db.ListQuery(list, "(id % 10) = 0 limit 5")
 	for _, item := range *list {
-		t.Logf("ITEM:  %+v\n", item)
+		t.Logf("TENS:  %+v\n", item)
 	}
 }
 
