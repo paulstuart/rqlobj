@@ -31,25 +31,25 @@ type DBU struct {
 }
 
 // Write will process a batch of queries and return a batch of results
-func (d DBU) Write(queries ...string) ([]gorqlite.WriteResult, error) {
-	if d.debug {
+func (db DBU) Write(queries ...string) ([]gorqlite.WriteResult, error) {
+	if db.debug {
 		for _, query := range queries {
-			d.debugf("Write: %s\n", query)
+			db.debugf("Write: %s\n", query)
 		}
 	}
-	return d.dbs.Write(queries)
+	return db.dbs.Write(queries)
 }
 
 // SetLogger sets the logger for the db
-func (d DBU) SetLogger(w io.Writer) {
+func (db DBU) SetLogger(w io.Writer) {
 	flags := log.Ldate | log.Lmicroseconds | log.Lshortfile
-	d._log = log.New(w, "", flags)
+	db._log = log.New(w, "", flags)
 }
 
 // debugf sends to common log
-func (d DBU) debugf(msg string, args ...interface{}) {
-	if d._log != nil {
-		d._log.Printf(msg, args...)
+func (db DBU) debugf(msg string, args ...interface{}) {
+	if db._log != nil {
+		db._log.Printf(msg, args...)
 	}
 }
 
@@ -62,12 +62,10 @@ type DBObject interface {
 
 	// KeyFields are the names of the table fields
 	// comprising the primary id
-	//KeyFields() []string
 	KeyField() string
 
 	// KeyNames are the struct names of the
 	// primary id fields
-	//KeyNames() []string
 	KeyName() string
 
 	// Names returns the struct element names
@@ -289,7 +287,6 @@ func (db DBU) LoadSelf(o DBObject) error {
 
 // DBList is the interface for a list of db objects
 type DBList interface {
-
 	// SQLGet is the query string to retrieve the list
 	SQLGet(extra string) string
 

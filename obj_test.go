@@ -147,7 +147,7 @@ func TestLoadBy(t *testing.T) {
 	s := &testStruct{
 		Name: "Waldo",
 		Kind: 1982,
-		Data: test_data,
+		Data: testData,
 	}
 	if err := db.Add(s); err != nil {
 		t.Fatal(err)
@@ -178,14 +178,14 @@ func TestSelf(t *testing.T) {
 	t.Log("BY SELF", s)
 }
 
-var test_data = "lorem ipsum"
+var testData = "lorem ipsum"
 
 func TestDBObject(t *testing.T) {
 	db := structDb(t)
 	s := &testStruct{
 		Name: "Grammatic, Bro",
 		Kind: 2001,
-		Data: test_data,
+		Data: testData,
 	}
 	if err := db.Add(s); err != nil {
 		t.Fatal(err)

@@ -9,12 +9,12 @@ import (
 	"github.com/paulstuart/rqlobj"
 )
 
-const test_table = `rdbms_structs`
+const testTable = `rdbms_structs`
 
 const createdb = `
-drop table if exists ` + test_table + `;
+drop table if exists ` + testTable + `;
 
-create table if not exists ` + test_table + ` (
+create table if not exists ` + testTable + ` (
 id integer primary key,
 name text,
 kind integer,
@@ -29,9 +29,9 @@ func TestCreate(t *testing.T) {
 	if debug {
 		trace = os.Stdout
 	}
-	dbu, err := rqlobj.NewRqlite(URL, logger, trace)
+	dbu, err := rqlobj.NewRqlite(url, logger, trace)
 	if err != nil {
-		t.Fatalf("URL:%s err:%v", URL, err)
+		t.Fatalf("URL:%s err:%v", url, err)
 	}
 	query := createdb
 	_, err = dbu.Write(query)
@@ -68,9 +68,9 @@ func TestList(t *testing.T) {
 	if debug {
 		trace = os.Stdout
 	}
-	dbu, err := rqlobj.NewRqlite(URL, logger, trace)
+	dbu, err := rqlobj.NewRqlite(url, logger, trace)
 	if err != nil {
-		t.Fatalf("URL:%s err:%v", URL, err)
+		t.Fatalf("URL:%s err:%v", url, err)
 	}
 	var list _testStruct
 	if err := dbu.ListQuery(&list, "limit 5"); err != nil {

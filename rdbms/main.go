@@ -10,30 +10,26 @@ import (
 	rqlobj "github.com/paulstuart/rqlobj"
 )
 
-//const URL = "http://localhost:4001"
-
 var (
 	logger io.Writer
-	URL    string
-	port   int = 4001
-	host       = "localhost"
-	debug      = false
+	url    string
+	port   = 4001
+	host   = "localhost"
+	debug  = false
 )
 
 func init() {
 	flag.StringVar(&host, "host", host, "host to connect to")
 	flag.IntVar(&port, "port", port, "port to connect to")
 	flag.BoolVar(&debug, "debug", false, "enable debug tracing")
-	URL = fmt.Sprintf("http://%s:%d", host, port)
+	url = fmt.Sprintf("http://%s:%d", host, port)
 }
 
 func main() {
 	flag.Parse()
-	URL = fmt.Sprintf("http://%s:%d", host, port)
-	//URL = fmt.Sprintf("http://%s:%d", *hostFlag, *portFlag)
-	URL = fmt.Sprintf("http://%s:%d", host, port)
-	fmt.Println("URL IS:", URL)
-	myList(URL)
+	url = fmt.Sprintf("http://%s:%d", host, port)
+	fmt.Println("URL IS:", url)
+	myList(url)
 	return
 
 	/*
@@ -75,9 +71,9 @@ func myList(url string) {
 	if debug {
 		trace = os.Stdout
 	}
-	dbu, err := rqlobj.NewRqlite(URL, logger, trace)
+	dbu, err := rqlobj.NewRqlite(url, logger, trace)
 	if err != nil {
-		log.Fatalf("URL:%s err:%v", URL, err)
+		log.Fatalf("URL:%s err:%v", url, err)
 	}
 	var list _testStruct
 	if err := dbu.List(&list); err != nil {
