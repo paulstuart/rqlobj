@@ -142,7 +142,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestFindBy(t *testing.T) {
+func TestLoadBy(t *testing.T) {
 	db := structDb(t)
 	s := &testStruct{
 		Name: "Waldo",
@@ -155,12 +155,12 @@ func TestFindBy(t *testing.T) {
 	f := &testStruct{
 		ID: s.ID,
 	}
-	if err := db.FindBy(f, s.KeyField(), f.ID); err != nil {
+	if err := db.LoadBy(f, s.KeyField(), f.ID); err != nil {
 		t.Error(err)
 	}
 	t.Log("BY ID", f)
 	u := testStruct{}
-	if err := db.FindBy(&u, "name", s.Name); err != nil {
+	if err := db.LoadBy(&u, "name", s.Name); err != nil {
 		t.Error(err)
 	}
 	t.Log("BY NAME", u)
@@ -172,7 +172,7 @@ func TestFindBy(t *testing.T) {
 func TestSelf(t *testing.T) {
 	db := structDb(t)
 	s := testStruct{ID: 1}
-	if err := db.FindSelf(&s); err != nil {
+	if err := db.LoadSelf(&s); err != nil {
 		t.Error(err)
 	}
 	t.Log("BY SELF", s)
@@ -197,7 +197,7 @@ func TestDBObject(t *testing.T) {
 	}
 	z := testStruct{}
 	m := map[string]interface{}{"kind": 2015}
-	if err := db.Find(&z, m); err != nil {
+	if err := db.Load(&z, m); err != nil {
 		t.Fatal(err)
 	}
 
