@@ -2,13 +2,33 @@ package rqlobj
 
 import (
 	"database/sql"
+	"flag"
 	"fmt"
+	"io"
+	"os"
 	"testing"
 	"time"
-
-	"github.com/paulstuart/sqlite"
-	//rqlite "github.com/rqlite/gorqlite"
 )
+
+var (
+	num   int = 23
+	trace bool
+	hey   string
+)
+
+func init() {
+	/*
+	 */
+	testing.Init()
+	flag.IntVar(&num, "num", num, "test ints")
+	flag.StringVar(&hey, "hey", hey, "test flags")
+	flag.BoolVar(&trace, "trace", true, "trace rqlite calls")
+	flag.Parse()
+
+	fmt.Println("INIT TRACE:", trace)
+	fmt.Println("INIT HEY:", hey)
+	fmt.Println("INIT NUM:", num)
+}
 
 type testStruct struct {
 	ID       int64     `sql:"id" key:"true" table:"structs"`
@@ -74,6 +94,19 @@ func (s *testStruct) ModifiedBy(u int64, t time.Time) {
 	s.Modified = t
 }
 
+type _testStruct []testStruct
+
+func (s *_testStruct) SQLGet(extra string) string {
+	// TODO: any way to derive from _testStruct?
+	const fields = "id,name,kind,data,modified"
+	const table = "struct"
+	return fmt.Sprintf("select %s from %s", fields, table)
+}
+
+func (s *_testStruct) SQLResults(func(...interface{}) error) error {
+	return nil
+}
+
 type testStrings struct {
 	ID       int64     `sql:"id" key:"true" table:"structs"`
 	Name     string    `sql:"name"`
@@ -89,38 +122,40 @@ const queryCreate = `create table if not exists structs (
     name text,
     kind int,
     data blob,
-    modified   DATETIME DEFAULT CURRENT_TIMESTAMP
+    modified DATETIME DEFAULT CURRENT_TIMESTAMP
 );`
 
 type testMap map[int64]testStruct
 
-func structDb(t *testing.T) DBS {
-	db, err := sqlite.Open(":memory:")
+func structDb(t *testing.T) DBU {
+	var w io.Writer
+	if trace {
+		w = os.Stdout
+	}
+	dbs, err := NewRqlite("http://localhost:4001", w)
 	if err != nil {
 		t.Fatal(err)
 	}
-	prepare(db)
-	return sqlWrapper{db}
-}
-
-func structRqlite(t *testing.T) DBU {
-	dbs, err := NewRqlite("http://localhost:4001")
-	if err != nil {
+	if _, err = dbs.dbs.Write(canned()); err != nil {
 		t.Fatal(err)
 	}
-	//prepareRqlite(dbs.conn)
-	if _, _, err = dbs.dbs.Exec(canned()...); err != nil {
-		t.Fatal(err)
-	}
-	return DBU{dbs: dbs}
+	return dbs
 }
 
-func structDBU(t *testing.T) DBU {
-	return DBU{dbs: structDb(t)}
+func TestMain(m *testing.M) {
+	/*
+		hey := "hey man"
+		flag.StringVar(&hey, "hey", hey, "test flags")
+		flag.BoolVar(&trace, "trace", true, "trace rqlite calls")
+		flag.Parse()
+		fmt.Println("MAIN TRACE:", trace)
+		fmt.Println("MAIN HEY:", hey)
+	*/
+	os.Exit(m.Run())
 }
 
 func TestFindBy(t *testing.T) {
-	db := structDBU(t)
+	db := structDb(t)
 	s := testStruct{}
 	if err := db.FindBy(&s, "name", "Bobby Tables"); err != nil {
 		t.Error(err)
@@ -134,7 +169,7 @@ func TestFindBy(t *testing.T) {
 }
 
 func TestSelf(t *testing.T) {
-	db := structDBU(t)
+	db := structDb(t)
 	s := testStruct{ID: 1}
 	if err := db.FindSelf(&s); err != nil {
 		t.Error(err)
@@ -145,7 +180,7 @@ func TestSelf(t *testing.T) {
 var test_data = "lorem ipsum"
 
 func TestDBObject(t *testing.T) {
-	db := structDBU(t)
+	db := structDb(t)
 	s := &testStruct{
 		Name: "Grammatic, Bro",
 		Kind: 2001,
@@ -186,17 +221,15 @@ func prepare(db *sql.DB) {
 }
 
 func canned() []string {
-	//const queryInsert = "insert into structs(name, kind, data) values('%s',%d, '%s')"
 	const queryInsert = "insert into structs(name, kind, data) values(%s)"
 	var queries []string
-	prep := func(s string, args ...interface{}) {
-		//queries = append(queries, (fmt.Sprintf(s, args...)))
+	prep := func(query string, args ...interface{}) {
 		if len(args) == 0 {
-			queries = append(queries, s)
-			return
+			queries = append(queries, query)
+		} else {
+			query = fmt.Sprintf(query, fieldList(args...))
+			queries = append(queries, query)
 		}
-		query := fmt.Sprintf(s, renderedFields(args...))
-		queries = append(queries, query)
 	}
 	prep(queryCreate)
 	prep(queryInsert, "abc", 23, "what ev er")
@@ -208,37 +241,6 @@ func canned() []string {
 	return queries
 }
 
-func prepareRqlite() {
-	//const queryInsert = "insert into structs(name, kind, data) values('%s',%d, '%s')"
-	const queryInsert = "insert into structs(name, kind, data) values(%s)"
-	var queries []string
-	prep := func(s string, args ...interface{}) {
-		//queries = append(queries, (fmt.Sprintf(s, args...)))
-		if len(args) == 0 {
-			queries = append(queries, s)
-			return
-		}
-		query := fmt.Sprintf(s, renderedFields(args...))
-		queries = append(queries, query)
-	}
-	prep(queryCreate)
-	prep(queryInsert, "abc", 23, "what ev er")
-	prep(queryInsert, "def", 69, "m'kay")
-	prep(queryInsert, "ghi", 42, "meaning of life")
-	prep(queryInsert, "jkl", 2, "of a kind")
-	prep(queryInsert, "mno", 2, "of a drag")
-	prep(queryInsert, "pqr", 2, "of a sort")
-	//results, err := conn.Write(queries)
-	_, err := conn.Write(queries)
-	if err != nil {
-		panic(err)
-	}
-	/*
-		for _, result := range results {
-			fmt.Printf("RESULT: %+v\n", result)
-		}
-	*/
-}
 func dump(t *testing.T, db *sql.DB, query string, args ...interface{}) {
 	rows, err := db.Query(query)
 	if err != nil {
@@ -265,6 +267,7 @@ func errLogger(t *testing.T) chan error {
 	return e
 }
 
+/*
 type _testStruct []testStruct
 
 func (list *_testStruct) add() {
@@ -285,9 +288,10 @@ func (_ *_testStruct) QueryString(where string) string {
 	}
 	return fmt.Sprintf("select %s from %s where %s\n", o.SelectFields(), o.TableName(), where)
 }
+*/
 
 func TestListQuery(t *testing.T) {
-	db := structDBU(t)
+	db := structDb(t)
 	list := new(_testStruct)
 	//db.ListQuery(list, "(id % 2) = 0")
 	db.ListQuery(list, "")
@@ -297,7 +301,7 @@ func TestListQuery(t *testing.T) {
 }
 
 func TestRqliteQuery(t *testing.T) {
-	db := structRqlite(t)
+	db := structDb(t)
 	list := new(_testStruct)
 	db.ListQuery(list, "(id % 2) = 0")
 	for _, item := range *list {

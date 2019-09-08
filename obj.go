@@ -1,8 +1,8 @@
 package rqlobj
 
 import (
-	//"database/sql"
 	"fmt"
+	"io"
 	"log"
 	"regexp"
 	"strings"
@@ -10,7 +10,6 @@ import (
 
 	"github.com/pkg/errors"
 	rqlite "github.com/rqlite/gorqlite"
-	//rqlite "github.com/paulstuart/gorqlite"
 )
 
 var (
@@ -25,59 +24,25 @@ var (
 	singleQuote = regexp.MustCompile("'")
 )
 
-/*
-// Common Rows object between rqlite and /pkg/database/sql
-// TODO: delete this?
-type Common interface {
-	Columns() []string
-	Next() bool
-	Scan(...interface{}) error
-}
-*/
-
-// SQLDB is a common interface for opening an sql db
-//type SQLDB func(string) (*sql.DB, error)
-
-// SetHandler returns a slice of value pointer interfaces
-// If there are no values to set it returns a nil instead
-//type SetHandler func() []interface{}
-
-// fragment to rethink code structure
-/*
-func commonQuery(rows Common, fn SetHandler) error {
-	for rows.Next() {
-		dest := fn()
-		if dest == nil {
-			return ErrNilWritePointers
-		}
-		if err := rows.Scan(dest...); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-*/
-type Fake struct {
-	Number int       `sql:"numb"`
-	TS     time.Time `sql:"ts"`
-}
-
-// DBU is a DatabaseUnit
+// DBU is a Database abstraction Unit
 type DBU struct {
 	dbs *rqlite.Connection
 	log *log.Logger
 }
 
+// Write will process a batch of queries and return a batch of results
 func (d DBU) Write(query ...string) ([]rqlite.WriteResult, error) {
 	return d.dbs.Write(query)
 }
 
 // SetLogger sets the logger for the db
-func (d DBU) SetLogger(logger *log.Logger) {
-	d.log = logger
+func (d DBU) SetLogger(w io.Writer) {
+	flags := log.Ldate | log.Lmicroseconds | log.Lshortfile
+	d.log = log.New(w, "", flags)
 }
 
-func (d DBU) debugf(msg string, args ...interface{}) {
+// Debugf sends to common log
+func (d DBU) Debugf(msg string, args ...interface{}) {
 	if d.log != nil {
 		d.log.Printf(msg, args...)
 	}
@@ -128,69 +93,53 @@ type DBObject interface {
 	MemberPointers() []interface{}
 
 	// ModifiedBy returns the user id and timestamp of when the object was last modified
-	ModifiedBy(int64, time.Time)
+	//ModifiedBy(int64, time.Time)
 }
 
-func fields(list ...interface{}) string {
+func fieldList(list ...interface{}) string {
 	var buf strings.Builder
 	for i, item := range list {
 		if i > 0 {
 			buf.WriteString(", ")
 		}
 		switch item := item.(type) {
+		case nil:
+			fmt.Printf("item: %d is nil\n", i)
+			buf.WriteString("null")
 		case string:
+			// escape any "'" by repeating them
 			item = singleQuote.ReplaceAllString(item, "''")
 			buf.WriteString("'")
 			buf.WriteString(item)
 			buf.WriteString("'")
 		case []byte:
+			// TODO: should []byte be base64 encoded?
 			buf.WriteString("'")
 			buf.WriteString(string(item))
 			buf.WriteString("'")
 		case time.Time:
-			buf.WriteString(fmt.Sprint(item.Unix()))
+			//fmt.Printf("FIELD:%d %v\n", i, item)
+			if item.IsZero() {
+				buf.WriteString("null")
+			} else {
+				buf.WriteString(fmt.Sprint(item.Unix()))
+			}
 		default:
+			//fmt.Println("DEFAULT VALUE:", item)
 			buf.WriteString(fmt.Sprint(item))
 		}
 	}
 	return buf.String()
 }
 
-/*
-// renderedFields is because rqlite doesn't support bind parameters
-func renderedFields(values ...interface{}) string {
-	var buf strings.Builder
-	for i, value := range values {
-		if i > 0 {
-			buf.WriteString(", ")
-		}
-		switch value := value.(type) {
-		case string:
-			value = singleQuote.ReplaceAllString(value, "''")
-			buf.WriteString("'")
-			buf.WriteString(fmt.Sprint(value))
-			buf.WriteString("'")
-		case []byte:
-			buf.WriteString("'")
-			buf.WriteString(string(value))
-			buf.WriteString("'")
-		default:
-			buf.WriteString(fmt.Sprint(value))
-		}
-	}
-	return buf.String()
-}
-*/
-
 func insertFields(o DBObject) string {
 	list := strings.Split(o.InsertFields(), ",")
-	keep := make([]string, 0, len(list))
-	for _, p := range list {
-		if p != o.KeyField() {
-			keep = append(keep, p)
+	for i, p := range list {
+		if p == o.KeyField() {
+			list = append(list[:i], list[i+1:]...)
 		}
 	}
-	return strings.Join(keep, ",")
+	return strings.Join(list, ",")
 }
 
 func setParams(params string) string {
@@ -202,40 +151,101 @@ func setParams(params string) string {
 }
 
 func insertQuery(o DBObject) string {
-	p := fields(o.InsertValues())
-	return fmt.Sprintf("insert into %s (%s) values(%s)", o.TableName(), insertFields(o), p)
+	/*
+		p := fields(o.InsertValues())
+		return fmt.Sprintf("insert into %s (%s) values(%s)", o.TableName(), insertFields(o), p)
+	*/
+	values := o.InsertValues()
+	fields := strings.Split(o.InsertFields(), ",")
+	for i, p := range fields {
+		if p == o.KeyField() {
+			fields = append(fields[:i], fields[i+1:]...)
+			values = append(values[:i], values[i+1:]...)
+		} else if t, ok := values[i].(time.Time); ok && t.IsZero() {
+			fields = append(fields[:i], fields[i+1:]...)
+			values = append(values[:i], values[i+1:]...)
+		}
+	}
+	const text = "insert into %s (%s) values(%s)"
+	return fmt.Sprintf(text, o.TableName(), strings.Join(fields, ","), fieldList(values))
 }
 
 func replaceQuery(o DBObject) string {
-	p := fields(o.InsertValues())
+	p := fieldList(o.InsertValues())
 	return fmt.Sprintf("replace into %s (%s) values(%s)", o.TableName(), insertFields(o), p)
 }
 
 func updateQuery(o DBObject) string {
 	//list := strings.Split(o.InsertFields(), ",")
-	return fmt.Sprintf("update %s set %s where %s=%s", o.TableName(), setParams(insertFields(o)), o.KeyField())
+	return fmt.Sprintf("update %s set %s where %s=%d", o.TableName(), setParams(insertFields(o)), o.KeyField(), o.Key())
 }
 
 func deleteQuery(o DBObject) string {
-	//key := o.Key()
 	// TODO: need to support non-int, multi-column keys
 	return fmt.Sprintf("delete from %s where %s=%d", o.TableName(), o.KeyField(), o.Key())
 }
 
 func upsertQuery(o DBObject) string {
-	//args := o.InsertValues()
+	/*
+		var fields []string
+		var values []interface{}
+	*/
+	values := o.InsertValues()
+	fields := strings.Split(o.InsertFields(), ",")
+	/*
+		fmt.Printf("VALUES:")
+		for i, f := range fields {
+			fmt.Printf(" %s:%v", f, values[i])
+		}
+		fmt.Println("")
+	*/
+	//fmt.Printf("EQUAL %d => %d\n", len(fields), len(values))
+	for i := 0; i < len(fields); i++ {
+		p := fields[i]
+		//fmt.Printf("====> I:%d FIELD:%s LIST (%d/%d):%v\n", i, p, len(fields), len(values), fields)
+		/**
+		drop := func() {
+			fmt.Printf("TO:%d FROM:%d LIST:%v\n", i, i+1, fields)
+			fields = append(fields[:i], fields[i+1:]...)
+			values = append(values[:i], values[i+1:]...)
+			i--
+		}
+		if p == o.KeyField() {
+			fmt.Println("dropping key field:", p)
+			drop()
+		} else if t, ok := values[i].(time.Time); ok && t.IsZero() {
+			fmt.Println("dropping unset time field:", p)
+			drop()
+		}
+		**/
+		/**/
+		if p == o.KeyField() {
+		} else if t, ok := values[i].(time.Time); ok && !t.IsZero() {
+		} else {
+			continue
+		}
+		fmt.Printf("DROP:%q TO:%d FROM:%d LIST:%v\n", p, i, i+1, fields)
+		fields = append(fields[:i], fields[i+1:]...)
+		values = append(values[:i], values[i+1:]...)
+		i--
+		/**/
+	}
+	/*
+		fmt.Printf("NEW VALUES:")
+		for i, f := range fields {
+			fmt.Printf(" %s:%v", f, values[i])
+		}
+		fmt.Println("")
+	*/
 	const text = "insert into %s (%s) values(%s) on conflict(%s) do nothing"
-	return fmt.Sprintf(text, o.TableName(), insertFields(o), fields(o.InsertValues()...), o.KeyField())
+	return fmt.Sprintf(text, o.TableName(), strings.Join(fields, ","), fieldList(values...), o.KeyField())
+	//return fmt.Sprintf(text, o.TableName(), insertFields(o), fieldList(o.InsertValues()...), o.KeyField())
 }
 
 // Add new object to datastore
 func (db DBU) Add(o DBObject) error {
 	query := upsertQuery(o)
-	fmt.Println("ADD QUERY:", query)
 	results, err := db.dbs.Write([]string{query})
-	for _, result := range results {
-		fmt.Println("ADD ERR:", result.Err)
-	}
 	if err != nil {
 		return err
 	}
@@ -256,21 +266,34 @@ func (db DBU) Replace(o DBObject) error {
 
 // Save modified object in datastore
 func (db DBU) Save(o DBObject) error {
-	fmt.Println("SAVE:", updateQuery(o))
-	_, err := db.dbs.Write([]string{updateQuery(o)})
-	return err
+	query := upsertQuery(o)
+	results, err := db.dbs.Write([]string{query})
+	for _, result := range results {
+		if result.Err != nil {
+			// assuming that if there's an error here,
+			// then the err value of the Write is non-nil
+			log.Println("SAVE ERR:", result.Err)
+		}
+	}
+	if err != nil {
+		return err
+	}
+	if len(results) > 0 {
+		o.SetID(results[0].LastInsertID)
+	}
+	return nil
 }
 
 // Delete object from datastore
 func (db DBU) Delete(o DBObject) error {
-	db.debugf(deleteQuery(o), o.Key())
+	db.Debugf(deleteQuery(o), o.Key())
 	_, err := db.dbs.Write([]string{deleteQuery(o)})
 	return err
 }
 
 // DeleteByID object from datastore by id
 func (db DBU) DeleteByID(o DBObject, id interface{}) error {
-	db.debugf(deleteQuery(o), id)
+	db.Debugf(deleteQuery(o), id)
 	_, err := db.dbs.Write([]string{deleteQuery(o)})
 	return err
 }
@@ -318,31 +341,31 @@ func (db DBU) FindSelf(o DBObject) error {
 	return db.FindBy(o, o.KeyField(), o.Key())
 }
 
-type Scanner interface {
-	Scan(...interface{}) error
-	//Next() bool
-}
-
 // DBList is the interface for a list of db objects
 type DBList interface {
-	/*
-		QueryString(extra string) string
-		Receivers() []interface{}
-	*/
+
+	// SQLGet is the query string to retrieve the list
 	SQLGet(extra string) string
-	SQLResults(Scanner) error
+
+	// SQLResults takes a Scan function
+	SQLResults(func(...interface{}) error) error
+}
+
+// typeinfo returns a string with interface info
+func typeinfo(list ...interface{}) string {
+	var buf strings.Builder
+	for i, item := range list {
+		if i > 0 {
+			buf.WriteString(",")
+		}
+		buf.WriteString(fmt.Sprintf("%d:%T:%v", i, item, item))
+	}
+	return buf.String()
 }
 
 // ListQuery updates a list of objects
 // TODO: handle args/vs no args for rqlite
 func (db DBU) ListQuery(list DBList, extra string) error {
-	/*
-		fn := func() []interface{} {
-			return list.Receivers()
-		}
-		query := list.QueryString(extra)
-		return db.dbs.Query(fn, query)
-	*/
 	query := list.SQLGet("")
 	results, err := db.dbs.Query([]string{query})
 	if err != nil {
@@ -350,7 +373,13 @@ func (db DBU) ListQuery(list DBList, extra string) error {
 	}
 	for _, result := range results {
 		for result.Next() {
-			if err := list.SQLResults(&result); err != nil {
+			fn := func(ptrs ...interface{}) error {
+				if err := result.Scan(ptrs...); err != nil {
+					return fmt.Errorf("%w: with ptrs: %s", err, typeinfo(ptrs...))
+				}
+				return err
+			}
+			if err := list.SQLResults(fn); err != nil {
 				return err
 			}
 		}
@@ -359,7 +388,7 @@ func (db DBU) ListQuery(list DBList, extra string) error {
 }
 
 // get is the low level db wrapper
-func (db DBU) get(members []interface{}, query string) error {
+func (db DBU) get(receivers []interface{}, query string) error {
 	if db.log != nil {
 		db.log.Printf("QUERY:%s\n", query)
 	}
@@ -368,5 +397,5 @@ func (db DBU) get(members []interface{}, query string) error {
 		log.Println("error on query: " + query + " -- " + err.Error())
 		return nil
 	}
-	return results.Scan(members)
+	return results.Scan(receivers)
 }

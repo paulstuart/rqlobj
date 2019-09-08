@@ -11,16 +11,31 @@ import (
 //const URL = "http://localhost:4001"
 
 var (
-	portFlag = flag.Int("port", 4001, "port to connect to")
-	hostFlag = flag.String("host", "localhost", "host to connect to")
-	URL      string
+	port  int = 4001
+	host      = "localhost"
+	debug     = false
+	URL   string
+	/*
+		portFlag  = flag.Int("port", 4001, "port to connect to")
+		hostFlag  = flag.String("host", "localhost", "host to connect to")
+	*/
 )
+
+func init() {
+	flag.StringVar(&host, "host", host, "host to connect to")
+	flag.IntVar(&port, "port", port, "port to connect to")
+	flag.BoolVar(&debug, "debug", false, "enable debug tracing")
+	URL = fmt.Sprintf("http://%s:%d", host, port)
+}
 
 func main() {
 	flag.Parse()
-	URL = fmt.Sprintf("http://%s:%d", *hostFlag, *portFlag)
-	try()
+	URL = fmt.Sprintf("http://%s:%d", host, port)
+	//URL = fmt.Sprintf("http://%s:%d", *hostFlag, *portFlag)
+	URL = fmt.Sprintf("http://%s:%d", host, port)
+	fmt.Println("URL IS:", URL)
 	return
+
 	conn, err := rqlite.Open("http://localhost:4001")
 	if err != nil {
 		log.Fatal(err)

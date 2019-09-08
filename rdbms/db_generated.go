@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-type Scanner func(...interface{}) error
-
 //
 // testStruct DBObject generator
 //
@@ -19,15 +17,15 @@ func (o testStruct) NewObj() interface{} {
 // testStruct DBObject interface functions
 //
 func (o *testStruct) InsertValues() []interface{} {
-	return []interface{}{o.Name, o.Kind, o.Data, o.Modified}
+	return []interface{}{o.Name, o.Kind, o.Data, o.When, o.Timestamp}
 }
 
 func (o *testStruct) UpdateValues() []interface{} {
-	return []interface{}{o.Name, o.Kind, o.Data, o.Modified, o.ID}
+	return []interface{}{o.Name, o.Kind, o.Data, o.When, o.Timestamp, o.ID}
 }
 
 func (o *testStruct) MemberPointers() []interface{} {
-	return []interface{}{&o.ID, &o.Name, &o.Kind, &o.Data, &o.Modified}
+	return []interface{}{&o.ID, &o.Name, &o.Kind, &o.Data, &o.When, &o.Timestamp}
 }
 
 func (o *testStruct) Key() int64 {
@@ -42,28 +40,31 @@ type _testStruct []testStruct
 
 func (o *_testStruct) SQLGet(where string) string {
 	if where == "" {
-		return "select id,name,kind,data,modified from structs;"
+		return "select id,name,kind,data,ts2,ts from structs;"
 	}
-	return "select id,name,kind,data,modified from structs where " + where + ";"
+	return "select id,name,kind,data,ts2,ts from structs where " + where + ";"
 }
 
-func (o *_testStruct) SQLResults(fn Scanner) error {
-	*o = append(*o, testStruct{})
-	off := len(*o) - 1
-	dest := &((*o)[off])
-	ptrs := dest.MemberPointers()
-	return fn(ptrs...)
+// SQLResults takes the equivalent of the Scan function in database/sql
+func (o *_testStruct) SQLResults(fn func(...interface{}) error) error {
+	var add testStruct
+	if err := fn((&add).MemberPointers()...); err != nil {
+		return err
+	}
+	*o = append(*o, add)
+	return nil
 }
+
 func (o *testStruct) TableName() string {
 	return "structs"
 }
 
 func (o *testStruct) SelectFields() string {
-	return "id,name,kind,data,modified"
+	return "id,name,kind,data,ts2,ts"
 }
 
 func (o *testStruct) InsertFields() string {
-	return "id,name,kind,data,modified"
+	return "name,kind,data,ts2,ts"
 }
 
 func (o *testStruct) KeyField() string {
@@ -75,7 +76,7 @@ func (o *testStruct) KeyName() string {
 }
 
 func (o *testStruct) Names() []string {
-	return []string{"Name", "Kind", "Data", "Modified"}
+	return []string{"Name", "Kind", "Data", "When", "Timestamp"}
 }
 
 func (o *testStruct) ModifiedBy(user int64, t time.Time) {
