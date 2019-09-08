@@ -19,12 +19,10 @@ var (
 	// ErrKeyMissing is returned when key value is not set
 	ErrKeyMissing = errors.New("key is not set")
 
-	ErrNilWritePointers = errors.New("nil record dest members")
-
 	singleQuote = regexp.MustCompile("'")
 )
 
-// DBU is a Database abstraction Unit
+// DBU is a database handler
 type DBU struct {
 	dbs *rqlite.Connection
 	log *log.Logger
@@ -41,8 +39,8 @@ func (d DBU) SetLogger(w io.Writer) {
 	d.log = log.New(w, "", flags)
 }
 
-// Debugf sends to common log
-func (d DBU) Debugf(msg string, args ...interface{}) {
+// debugf sends to common log
+func (d DBU) debugf(msg string, args ...interface{}) {
 	if d.log != nil {
 		d.log.Printf(msg, args...)
 	}
@@ -213,7 +211,7 @@ func (db DBU) Save(o DBObject) error {
 // Delete object from datastore
 func (db DBU) Delete(o DBObject) error {
 	query := deleteQuery(o, o.Key())
-	db.Debugf(query)
+	db.debugf(query)
 	results, err := db.dbs.Write([]string{query})
 	if err != nil {
 		return err
@@ -229,7 +227,7 @@ func (db DBU) Delete(o DBObject) error {
 // DeleteByID object from datastore by id
 func (db DBU) DeleteByID(o DBObject, id interface{}) error {
 	query := deleteQuery(o, id.(int64))
-	db.Debugf(query)
+	db.debugf(query)
 	_, err := db.dbs.Write([]string{query})
 	return err
 }
@@ -325,7 +323,7 @@ func (db DBU) ListQuery(list DBList, extra string) error {
 
 // get is the low level db wrapper
 func (db DBU) get(receivers []interface{}, query string) error {
-	db.Debugf("get query:%s\n", query)
+	db.debugf("get query:%s\n", query)
 	result, err := db.dbs.QueryOne(query)
 	if err != nil {
 		db.log.Println("error on get query: " + query + " -- " + err.Error())
