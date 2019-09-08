@@ -2,6 +2,10 @@ github.com/mattn/go-sqlite3 v1.11.0 h1:LDdKkqtYlom37fkvqs8rMPFKAMe8+SgjbwZ6ex1/A
 github.com/mattn/go-sqlite3 v1.11.0/go.mod h1:FPy6KqzDD04eiIsT53CuJW3U88zkxoIYsOqkbpncsNc=
 github.com/paulstuart/dbutil v0.0.0-20190428230506-a1963d9b43aa h1:izIICV0clpKfOUKB79KV7QM1ER5tcC0VPoc766cwB0U=
 github.com/paulstuart/dbutil v0.0.0-20190428230506-a1963d9b43aa/go.mod h1:/BFXSu3tfmzy6LQDguSX7QNXowbEt9CBqI8M+fQn+Rs=
+github.com/paulstuart/gorqlite v0.0.0-20190908043328-8d47a6e1d779 h1:W7xRI42F/Ko5zTumEggVUcenqDeL7EfRtYQMa4ExQII=
+github.com/paulstuart/gorqlite v0.0.0-20190908043328-8d47a6e1d779/go.mod h1:SZCQftG/QakaEyyaEfJF2Ekp1HzXPTWE+lxbIp8PpoQ=
+github.com/paulstuart/gorqlite v0.0.0-20190908202324-28768af132ae h1:eaYAItwqx03l0lt0LPYLwvyyNG31BXfGg0sC4uPtsjk=
+github.com/paulstuart/gorqlite v0.0.0-20190908202324-28768af132ae/go.mod h1:SZCQftG/QakaEyyaEfJF2Ekp1HzXPTWE+lxbIp8PpoQ=
 github.com/paulstuart/sqlite v0.0.0-20190824211918-573816321275 h1:lY9XtzhdmgiEXMwu63Xv2uZWM5gZnLz1TxLlLtJArr4=
 github.com/paulstuart/sqlite v0.0.0-20190824211918-573816321275/go.mod h1:6az5+KBaRSo3kRfVtmbXo11zcbVBFyK/tYecfdLDwXc=
 github.com/pkg/errors v0.8.1 h1:iURUrRGxPUNPdy5/HRSm+Yj6okJ6UtLINN0Q9M4+h3I=

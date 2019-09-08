@@ -5,15 +5,17 @@ import (
 )
 
 type testStruct struct {
-	ID   int64  `sql:"id" key:"true" table:"structs"`
-	Name string `sql:"name"`
-	//Kind int    `sql:"kind"`
-	Kind int64 `sql:"kind"`
-	//Data     []byte    `sql:"data"`
+	ID        int64     `sql:"id" key:"true" table:"structs"`
+	Name      string    `sql:"name"`
+	Kind      int64     `sql:"kind"`
 	Data      string    `sql:"data"`
-	When      time.Time `sql:"ts2"`
 	Timestamp time.Time `sql:"ts"`
-	//Modified time.Time `sql:"modified" update:"false"`
-	astring string
-	anint   int
+	When      time.Time `sql:"ts2"`
+	astring   string
+	anint     int
+	/*
+		Modified  time.Time `sql:"modified" update:"false"`
+		Kind      int       `sql:"kind"`
+		Data      []byte    `sql:"data"`
+	*/
 }

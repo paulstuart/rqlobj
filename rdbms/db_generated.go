@@ -39,10 +39,7 @@ func (o *testStruct) SetID(id int64) {
 type _testStruct []testStruct
 
 func (o *_testStruct) SQLGet(where string) string {
-	if where == "" {
-		return "select id,name,kind,data,ts2,ts from structs;"
-	}
-	return "select id,name,kind,data,ts2,ts from structs where " + where + ";"
+	return "select id,name,kind,data,ts2,ts from structs " + where + ";"
 }
 
 // SQLResults takes the equivalent of the Scan function in database/sql

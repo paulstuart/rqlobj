@@ -5,6 +5,10 @@
 *.so
 *.dylib
 
+# our binaries
+rdbms/rdbms
+dbgen/dbgen
+
 # Test binary, build with `go test -c`
 *.test
 
@@ -14,5 +18,3 @@
 # vendor is for temporary edits using "go mod vendor"
 vendor/
 
-# our binaries
-rdbms/rdbms

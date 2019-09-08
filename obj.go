@@ -3,13 +3,14 @@ package rqlobj
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/paulstuart/gorqlite"
 	"github.com/pkg/errors"
-	rqlite "github.com/rqlite/gorqlite"
 )
 
 var (
@@ -24,25 +25,31 @@ var (
 
 // DBU is a database handler
 type DBU struct {
-	dbs *rqlite.Connection
-	log *log.Logger
+	dbs   *gorqlite.Connection
+	debug bool
+	_log  *log.Logger
 }
 
 // Write will process a batch of queries and return a batch of results
-func (d DBU) Write(query ...string) ([]rqlite.WriteResult, error) {
-	return d.dbs.Write(query)
+func (d DBU) Write(queries ...string) ([]gorqlite.WriteResult, error) {
+	if d.debug {
+		for _, query := range queries {
+			d.debugf("Write: %s\n", query)
+		}
+	}
+	return d.dbs.Write(queries)
 }
 
 // SetLogger sets the logger for the db
 func (d DBU) SetLogger(w io.Writer) {
 	flags := log.Ldate | log.Lmicroseconds | log.Lshortfile
-	d.log = log.New(w, "", flags)
+	d._log = log.New(w, "", flags)
 }
 
 // debugf sends to common log
 func (d DBU) debugf(msg string, args ...interface{}) {
-	if d.log != nil {
-		d.log.Printf(msg, args...)
+	if d._log != nil {
+		d._log.Printf(msg, args...)
 	}
 }
 
@@ -153,6 +160,9 @@ func updateQuery(o DBObject) string {
 
 func deleteQuery(o DBObject, key int64) string {
 	// TODO: need to support non-int, multi-column keys
+	if key == 0 {
+		return fmt.Sprintf("delete from %s;", o.TableName())
+	}
 	return fmt.Sprintf("delete from %s where %s=%v;", o.TableName(), o.KeyField(), key)
 }
 
@@ -161,24 +171,25 @@ func upsertQuery(o DBObject) string {
 	fields := strings.Split(o.InsertFields(), ",")
 	// do not include fields with unset time -- it's effectively null
 	for i := 0; i < len(fields); i++ {
+		//fmt.Printf("%d/%d %T:%v\n", i+1, len(values), values[i], values[i])
 		p := fields[i]
 		if p == o.KeyField() {
 		} else if t, ok := values[i].(time.Time); ok && !t.IsZero() {
 		} else {
 			continue
 		}
+		i--
 		fields = append(fields[:i], fields[i+1:]...)
 		values = append(values[:i], values[i+1:]...)
-		i--
 	}
-	const text = "insert into %s (%s) values(%s) on conflict(%s) do nothing"
+	const text = "INSERT into %s (%s) values(%s) on conflict(%s) do nothing"
 	return fmt.Sprintf(text, o.TableName(), strings.Join(fields, ","), fieldList(values...), o.KeyField())
 }
 
 // Add new object to datastore
 func (db DBU) Add(o DBObject) error {
 	query := upsertQuery(o)
-	results, err := db.dbs.Write([]string{query})
+	results, err := db.Write(query)
 	if err != nil {
 		return err
 	}
@@ -191,12 +202,12 @@ func (db DBU) Add(o DBObject) error {
 // Update saves a modified object in the datastore
 func (db DBU) Update(o DBObject) error {
 	query := upsertQuery(o)
-	results, err := db.dbs.Write([]string{query})
+	results, err := db.Write(query)
 	for _, result := range results {
 		if result.Err != nil {
 			// assuming that if there's an error here,
 			// then the err value of the Write is non-nil
-			db.log.Println("SAVE ERR:", result.Err)
+			db.debugf("save error: %+v\n", result.Err)
 		}
 	}
 	if err != nil {
@@ -210,9 +221,14 @@ func (db DBU) Update(o DBObject) error {
 
 // Delete object from datastore
 func (db DBU) Delete(o DBObject) error {
-	query := deleteQuery(o, o.Key())
+	return db.DeleteByID(o, o.Key())
+}
+
+// DeleteByID object from datastore by id
+func (db DBU) DeleteByID(o DBObject, id int64) error {
+	query := deleteQuery(o, id)
 	db.debugf(query)
-	results, err := db.dbs.Write([]string{query})
+	results, err := db.Write(query)
 	if err != nil {
 		return err
 	}
@@ -224,12 +240,9 @@ func (db DBU) Delete(o DBObject) error {
 	return nil
 }
 
-// DeleteByID object from datastore by id
-func (db DBU) DeleteByID(o DBObject, id interface{}) error {
-	query := deleteQuery(o, id.(int64))
-	db.debugf(query)
-	_, err := db.dbs.Write([]string{query})
-	return err
+// DeleteAll deletes all objects of that type from the datastore
+func (db DBU) DeleteAll(o DBObject) error {
+	return db.DeleteByID(o, 0)
 }
 
 // List objects from datastore
@@ -237,10 +250,9 @@ func (db DBU) List(list DBList) error {
 	return db.ListQuery(list, "")
 }
 
-// Find loads an object matching the given keys
-func (db DBU) Find(o DBObject, keys map[string]interface{}) error {
+// Load loads an object matching the given keys
+func (db DBU) Load(o DBObject, keys map[string]interface{}) error {
 	where := make([]string, 0, len(keys))
-	//what := make([]interface{}, 0, len(keys))
 	for k, v := range keys {
 		where = append(where, fmt.Sprintf("%s=%v", k, v))
 	}
@@ -249,8 +261,8 @@ func (db DBU) Find(o DBObject, keys map[string]interface{}) error {
 	return db.get(o.MemberPointers(), query)
 }
 
-// FindBy loads an  object matching the given key/value
-func (db DBU) FindBy(o DBObject, key string, value interface{}) error {
+// LoadBy loads an  object matching the given key/value
+func (db DBU) LoadBy(o DBObject, key string, value interface{}) error {
 	text := "select %s from %s where %s=%v"
 	if _, ok := value.(string); ok {
 		text = "select %s from %s where %s='%s'"
@@ -259,20 +271,20 @@ func (db DBU) FindBy(o DBObject, key string, value interface{}) error {
 	return db.get(o.MemberPointers(), query)
 }
 
-// FindByID loads an object based on a given ID
-func (db DBU) FindByID(o DBObject, value interface{}) error {
-	return db.FindBy(o, o.KeyField(), value)
+// LoadByID loads an object based on a given ID
+func (db DBU) LoadByID(o DBObject, value interface{}) error {
+	return db.LoadBy(o, o.KeyField(), value)
 }
 
-// FindSelf loads an object based on it's current ID
-func (db DBU) FindSelf(o DBObject) error {
+// LoadSelf loads an object based on it's current ID
+func (db DBU) LoadSelf(o DBObject) error {
 	if len(o.KeyField()) == 0 {
 		return ErrNoKeyField
 	}
 	if o.Key() == 0 {
 		return ErrKeyMissing
 	}
-	return db.FindBy(o, o.KeyField(), o.Key())
+	return db.LoadBy(o, o.KeyField(), o.Key())
 }
 
 // DBList is the interface for a list of db objects
@@ -298,9 +310,8 @@ func typeinfo(list ...interface{}) string {
 }
 
 // ListQuery updates a list of objects
-// TODO: handle args/vs no args for rqlite
-func (db DBU) ListQuery(list DBList, extra string) error {
-	query := list.SQLGet(extra)
+func (db DBU) ListQuery(list DBList, where string) error {
+	query := list.SQLGet(where)
 	results, err := db.dbs.Query([]string{query})
 	if err != nil {
 		return err
@@ -314,7 +325,7 @@ func (db DBU) ListQuery(list DBList, extra string) error {
 				return err
 			}
 			if err := list.SQLResults(fn); err != nil {
-				db.log.Println("scan error:", err)
+				db.debugf("scan error: %v\n", err)
 				return err
 			}
 		}
@@ -327,11 +338,28 @@ func (db DBU) get(receivers []interface{}, query string) error {
 	db.debugf("get query:%s\n", query)
 	result, err := db.dbs.QueryOne(query)
 	if err != nil {
-		db.log.Println("error on get query: " + query + " -- " + err.Error())
+		db.debugf("error on get query: %q :: %v\n", query, err)
 		return err
 	}
 	if result.Next() {
 		return result.Scan(receivers...)
 	}
 	return nil
+}
+
+// NewRqlite returns a DBU connected to a rqlite cluster
+func NewRqlite(host string, logger, trace io.Writer) (DBU, error) {
+	conn, err := gorqlite.Open(host)
+	if logger == nil {
+		logger = ioutil.Discard
+	}
+	dbu := DBU{_log: log.New(logger, "", 0)}
+	if err == nil {
+		if trace != nil {
+			gorqlite.TraceOn(trace)
+			dbu.debug = true
+		}
+		dbu.dbs = &conn
+	}
+	return dbu, err
 }

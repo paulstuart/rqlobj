@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	//	"reflect"
 	"io"
 	"os"
 	"testing"
@@ -11,35 +9,19 @@ import (
 	"github.com/paulstuart/rqlobj"
 )
 
+const test_table = `rdbms_structs`
+
 const createdb = `
-drop table if exists structs;
+drop table if exists ` + test_table + `;
 
-create table if not exists structs (
+create table if not exists ` + test_table + ` (
 id integer primary key,
 name text,
 kind integer,
-ts2 integer DEFAULT (datetime('now','localtime')),
--- integer DEFAULT 23,
 data text,
-astring string,
-ts DATE DEFAULT (datetime('now','localtime')),
---ts timestamp default (strftime('%s', 'now')
-anint integer
+ts DATETIME DEFAULT (datetime('now','utc')),
+ts2 integer DEFAULT (datetime('now','utc'))
 );
-`
-
-const timing = `
-create table if not exists timing (
-id integer primary key,
-name text,
-kind integer,
---when DATE DEFAULT (datetime('now','localtime'))
-);
-
-`
-
-const inserted = `
-insert into paultest (name) values('Ringo');
 `
 
 func TestCreate(t *testing.T) {
@@ -47,27 +29,26 @@ func TestCreate(t *testing.T) {
 	if debug {
 		trace = os.Stdout
 	}
-	dbu, err := rqlobj.NewRqlite(URL, trace)
+	dbu, err := rqlobj.NewRqlite(URL, logger, trace)
 	if err != nil {
 		t.Fatalf("URL:%s err:%v", URL, err)
 	}
 	query := createdb
 	_, err = dbu.Write(query)
 	if err != nil {
-		fmt.Printf("OOPSIE:%s\n\n", query)
-		t.Fatal(err)
+		t.Fatalf("query:%q error:%v", query, err)
 	}
 	self := &testStruct{
-		Name: "Bobby",
-		Kind: 123,
-		//Data: []byte("hey now"),
+		Name:      "Bobby",
+		Kind:      123,
 		Data:      "hey now",
 		Timestamp: time.Now(),
-		//Timestamp: time.Now().Unix(),
+		When:      time.Now().Add(time.Hour * -24),
 	}
 	if err := dbu.Add(self); err != nil {
 		t.Fatal(err)
 	}
+	return
 	const layout = "2006-01-02 15:04:05"
 	const before = "2001-09-10 11:11:11"
 	when, _ := time.Parse(layout, before)
@@ -80,7 +61,6 @@ func TestCreate(t *testing.T) {
 	if err := dbu.Add(other); err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println("SAVED!")
 }
 
 func TestList(t *testing.T) {
@@ -88,16 +68,15 @@ func TestList(t *testing.T) {
 	if debug {
 		trace = os.Stdout
 	}
-	dbu, err := rqlobj.NewRqlite(URL, trace)
+	dbu, err := rqlobj.NewRqlite(URL, logger, trace)
 	if err != nil {
 		t.Fatalf("URL:%s err:%v", URL, err)
 	}
 	var list _testStruct
-	if err := dbu.List(&list); err != nil {
+	if err := dbu.ListQuery(&list, "limit 5"); err != nil {
 		t.Fatal(err)
 	}
-	//fmt.Println("LIST:", list)
 	for i, v := range list {
-		fmt.Printf("%d: %+v\n", i, v)
+		t.Logf("%d: %+v\n", i, v)
 	}
 }
