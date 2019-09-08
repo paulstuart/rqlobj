@@ -138,29 +138,35 @@ func structDb(t *testing.T) DBU {
 
 func TestMain(m *testing.M) {
 	flag.BoolVar(&trace, "trace", false, "trace rqlite calls")
-	fmt.Println("TRACE:", trace)
 	flag.Parse()
 	os.Exit(m.Run())
 }
 
 func TestFindBy(t *testing.T) {
 	db := structDb(t)
-	s := testStruct{}
-	var have _testStruct
-	if err := db.List(&have); err != nil {
-		t.Error(err)
-	} else {
-		t.Logf("Have: %v\n", have)
+	s := &testStruct{
+		Name: "Waldo",
+		Kind: 1982,
+		Data: test_data,
 	}
-	if err := db.FindBy(&s, "name", "Bobby Tables"); err != nil {
+	if err := db.Add(s); err != nil {
+		t.Fatal(err)
+	}
+	f := &testStruct{
+		ID: s.ID,
+	}
+	if err := db.FindBy(f, s.KeyField(), f.ID); err != nil {
 		t.Error(err)
 	}
-	t.Log("BY NAME", s)
+	t.Log("BY ID", f)
 	u := testStruct{}
-	if err := db.FindBy(&u, "id", 1); err != nil {
+	if err := db.FindBy(&u, "name", s.Name); err != nil {
 		t.Error(err)
 	}
-	t.Log("BY ID", u)
+	t.Log("BY NAME", u)
+	if err := db.Delete(f); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestSelf(t *testing.T) {
@@ -244,7 +250,6 @@ func dump(t *testing.T, db *sql.DB, query string, args ...interface{}) {
 func TestListQuery(t *testing.T) {
 	db := structDb(t)
 	list := new(_testStruct)
-	fmt.Println("START")
 	if err := db.ListQuery(list, "limit 5"); err != nil {
 		t.Fatal(err)
 	}
