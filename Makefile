@@ -1,4 +1,4 @@
-.PHONY: help run-tests test-shell up down start init clean-logs ps githooks dev-container docker-clean rbox1 info go profile html show cover escape
+.PHONY: help run-tests test up down start init clean-logs ps githooks dev-container docker-clean rbox1 info go profile html show cover escape
 
 .DEFAULT_GOAL := help
 DOCKER_BUILDKIT=1
@@ -64,3 +64,5 @@ cover:
 escape:
 	@go build -gcflags '-m' db.go lite.go table.go
 
+test:
+	http_proxy=http://localhost:8888/ go test
