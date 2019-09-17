@@ -4,6 +4,8 @@
 //
 // The next version incorporated SQL fragment generation that exposed the struct tag
 // data and allowed creating queries without reflection.
+//
+// This current version extends to multi-key support and an ostensibly trimmer API
 package rqlobj
 
 import (
