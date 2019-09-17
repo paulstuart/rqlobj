@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/paulstuart/gorqlite"
 	"github.com/pkg/errors"
+	"github.com/rqlite/gorqlite"
 )
 
 var (

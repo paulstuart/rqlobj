@@ -1,12 +1,12 @@
 package main
 
 import (
+	"database/sql"
 	"database/sql/driver"
 	"os"
 	"testing"
 
-	//dbu "github.com/paulstuart/dbutil"
-	sqlite "github.com/paulstuart/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 const (
@@ -20,7 +20,7 @@ func (o *testStruct) IV() []driver.Value {
 func TestInit(t *testing.T) {
 	var err error
 	os.Remove(test_file)
-	test_db, err := sqlite.Open(test_file)
+	test_db, err := sql.Open("sqlite3", test_file)
 	if err != nil {
 		t.Fatal(err)
 	}

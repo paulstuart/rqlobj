@@ -9,4 +9,5 @@ require (
 	github.com/paulstuart/rqlite v4.5.0+incompatible
 	github.com/paulstuart/sqlite v0.0.0-20190824211918-573816321275
 	github.com/pkg/errors v0.8.1
+	github.com/rqlite/gorqlite v0.0.0-20190911195437-7476ee0ed9ea
 )

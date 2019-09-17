@@ -10,3 +10,5 @@ github.com/paulstuart/sqlite v0.0.0-20190824211918-573816321275 h1:lY9XtzhdmgiEX
 github.com/paulstuart/sqlite v0.0.0-20190824211918-573816321275/go.mod h1:6az5+KBaRSo3kRfVtmbXo11zcbVBFyK/tYecfdLDwXc=
 github.com/pkg/errors v0.8.1 h1:iURUrRGxPUNPdy5/HRSm+Yj6okJ6UtLINN0Q9M4+h3I=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
+github.com/rqlite/gorqlite v0.0.0-20190911195437-7476ee0ed9ea h1:aYkQgCI26alVnncXru573qSHT3eNxkc9YzZoUj5/hJY=
+github.com/rqlite/gorqlite v0.0.0-20190911195437-7476ee0ed9ea/go.mod h1:UW/gxgQwSePTvL1KA8QEHsXeYHP4xkoXgbDdN781p34=
