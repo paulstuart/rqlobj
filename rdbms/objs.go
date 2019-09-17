@@ -23,6 +23,7 @@ type testDates struct {
 	Data      string    `sql:"data"`
 	Timestamp time.Time `sql:"ts"`
 	When      time.Time `sql:"ts2"`
-	astring   string
-	anint     int
+	TS3       time.Time `sql:"ts3"`
+	TS4       time.Time `sql:"ts4"`
+	TS5       time.Time `sql:"ts5"`
 }

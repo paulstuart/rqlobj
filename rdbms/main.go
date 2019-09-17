@@ -16,7 +16,7 @@ var (
 	logger io.Writer
 	url    string
 	port   = 4001
-	host   = "localhost"
+	host   = "rbox1" // in the cluster in docker compose
 	debug  = false
 )
 
@@ -35,7 +35,7 @@ func main() {
 	return
 
 	/*
-		conn, err := gorqlite.Open("http://localhost:4001")
+		conn, err := gorqlite.Open("http://nopes:4001")
 		if err != nil {
 			log.Fatal(err)
 		}

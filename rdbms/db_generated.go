@@ -28,7 +28,7 @@ func (o *testStruct) Receivers() []interface{} {
 	return []interface{}{&o.ID, &o.Name, &o.Kind, &o.Data, &o.Timestamp, &o.When}
 }
 
-func (o *testStruct) Keys() []interface{} {
+func (o *testStruct) KeyValues() []interface{} {
 	return []interface{}{o.ID}
 }
 

@@ -184,6 +184,7 @@ func replaceQuery(o DBObject) string {
 }
 
 func updateQuery(o DBObject) string {
+	panic("fix the 'set' part of the update statement")
 	if id, ok := o.Primary(); ok {
 		return fmt.Sprintf("update %s set %s where %s=%d", o.TableName(), setParams(insertFields(o)), o.KeyFields()[0], id)
 	}
@@ -330,33 +331,54 @@ func (db DBU) Load(o DBObject, keys map[string]interface{}) error {
 
 // LoadBy loads an  object matching the given key/value
 func (db DBU) LoadBy(o DBObject, key string, value interface{}) error {
-	text := "select %s from %s where %s=%v"
-	if _, ok := value.(string); ok {
+	var text, query string
+	switch value := value.(type) {
+	case string:
 		text = "select %s from %s where %s='%s'"
+		query = fmt.Sprintf(text, o.SelectFields(), o.TableName(), key, value)
+	case int, int64, uint, uint64:
+		text = "select %s from %s where %s=%d"
+		query = fmt.Sprintf(text, o.SelectFields(), o.TableName(), key, value)
+	default:
+		text = "select %s from %s where %s=%v"
+		query = fmt.Sprintf(text, o.SelectFields(), o.TableName(), key, value)
 	}
-	query := fmt.Sprintf(text, o.SelectFields(), o.TableName(), key, value)
 	return db.get(o.Receivers(), query)
 }
 
-/*
-// LoadByID loads an object based on a given ID
-func (db DBU) LoadByID(o DBObject, value interface{}) error {
-	return db.LoadBy(o, o.KeyFields(), value)
+// LoadByID loads an object based on a given int64 primary ID
+func (db DBU) LoadByID(o DBObject, id int64) error {
+	const text = "select %s from %s where %s=%d"
+	if id, ok := o.Primary(); ok {
+		return db.LoadBy(o, o.KeyFields()[0], id)
+	}
+	return fmt.Errorf("does not have an int primary id")
+
 }
-*/
 
 // LoadSelf loads an object based on it's current ID
-/*
 func (db DBU) LoadSelf(o DBObject) error {
+	if id, ok := o.Primary(); ok {
+		return db.LoadBy(o, o.KeyFields()[0], id)
+	}
 	if len(o.KeyFields()) == 0 {
 		return ErrNoKeyField
 	}
-	if o.Key() == 0 {
+	keys := o.KeyFields()
+	if len(keys) == 1 {
+		return db.LoadBy(o, keys[0], o.KeyValues()[0])
+	}
+	if len(keys) == 0 {
 		return ErrKeyMissing
 	}
-	return db.LoadBy(o, o.KeyFields(), o.Key())
+	values := o.KeyValues()
+	m := make(map[string]interface{}, len(keys))
+	for i, key := range keys {
+		m[key] = values[i]
+	}
+
+	return db.Load(o, m)
 }
-*/
 
 // DBList is the interface for a list of db objects
 type DBList interface {
