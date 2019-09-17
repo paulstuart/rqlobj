@@ -296,14 +296,14 @@ func (g *Generator) parsePackage(directory string, names []string, text interfac
 	g.pkg.files = files
 	g.pkg.dir = directory
 	// Type check the package.
-	g.pkg.check(fs, astFiles)
+	//g.pkg.check(fs, astFiles)
 	return false
 }
 
+// TODO: rethink this. For now, assume it's all good
 // check type-checks the package. The package must be OK to proceed.
 func (pkg *Package) check(fs *token.FileSet, astFiles []*ast.File) {
 	// maybe we just put that on the user to go vet before?
-	return
 	pkg.defs = make(map[*ast.Ident]types.Object)
 	//ctx := build.Default
 	config := types.Config{
