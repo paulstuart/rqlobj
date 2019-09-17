@@ -16,4 +16,4 @@ before_install:
   - sudo mv docker-compose /usr/local/bin
 
 script:
-  - make get up test
+  - make get up pause test

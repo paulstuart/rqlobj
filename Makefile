@@ -1,4 +1,4 @@
-.PHONY: help run-tests test up down start init clean-logs ps githooks dev-container docker-clean rbox1 info go profile html show cover escape get
+.PHONY: help run-tests test up down start init clean-logs ps githooks dev-container docker-clean rbox1 info go profile html show cover escape get pause
 
 .DEFAULT_GOAL := help
 DOCKER_BUILDKIT=1
@@ -69,3 +69,6 @@ test:
 
 get:
 	@go get -u -t ./...
+
+pause:
+	sleep 30

@@ -1,0 +1,15 @@
+#
+# a docker compose service for building go projects
+#
+version: "3.7"
+services:
+  client:
+    image: golang:alpine
+    hostname: gobox
+    restart: always
+    stdin_open: true
+    tty: true
+    entrypoint:
+      - /bin/sh
+    volumes:
+      - .:/host
