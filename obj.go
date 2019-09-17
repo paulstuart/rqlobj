@@ -1,11 +1,4 @@
-// Package rqlobj provides basic object relational mapping against an sql database
-//
-// Originally developed against SQLite using runtime reflection to generate queries.
-//
-// The next version incorporated SQL fragment generation that exposed the struct tag
-// data and allowed creating queries without reflection.
-//
-// This current version extends to multi-key support and an ostensibly trimmer API
+// Package rqlobj provides basic object relational mapping against an sql(ite) database
 package rqlobj
 
 import (
@@ -31,11 +24,16 @@ var (
 	singleQuote = regexp.MustCompile("'")
 )
 
-// DBU is a database handler
+// DBU is a database handler that works with DBOject variables
 type DBU struct {
 	dbs   *gorqlite.Connection
 	debug bool
 	_log  *log.Logger
+}
+
+// Debug sets database debugging on/off
+func (db DBU) Debug(enable bool) {
+	db.debug = enable
 }
 
 // Write will process a batch of queries and return a batch of results
@@ -61,24 +59,6 @@ func (db DBU) debugf(msg string, args ...interface{}) {
 	}
 }
 
-/*
-CREATE
-READ
-UPDATE
-DELETE
-*/
-// DXo object
-type DXo interface {
-	// return an unqualified query that selects all fields
-	SelectQuery() string
-
-	// return the 'where' string to retrieve an object by it's primary key(s)
-	SelectWhere() string
-
-	// return a list of pointers for all fields
-	SelectReceivers() []interface{}
-}
-
 // DBObject interface provides methods for object storage
 // in an sql database.  The functions are generated for each
 // relevant struct type that are annotated accordingly
@@ -86,9 +66,8 @@ type DBObject interface {
 	// TableName is the name of the sql table
 	TableName() string
 
-	// Primary returns an int64 and a bool
-	// representing the int64 primary key, and 'true'
-	// if it is valid (0 is valid for uninitialized)
+	// Primary returns the primary key and a bool,
+	// set true, if the key is valid
 	Primary() (int64, bool)
 
 	// SetPrimary updates the primary key
@@ -186,7 +165,7 @@ func replaceQuery(o DBObject) string {
 }
 
 func updateQuery(o DBObject) string {
-	panic("fix the 'set' part of the update statement")
+	fmt.Println("fix the 'set' part of the update statement")
 	if id, ok := o.Primary(); ok {
 		return fmt.Sprintf("update %s set %s where %s=%d", o.TableName(), setParams(insertFields(o)), o.KeyFields()[0], id)
 	}
@@ -266,6 +245,7 @@ func (db DBU) Add(o DBObject) error {
 		return err
 	}
 	if len(results) > 0 {
+		// If not a primary object this is a NOP
 		o.SetPrimary(results[0].LastInsertID)
 	}
 	return nil

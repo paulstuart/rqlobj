@@ -29,6 +29,25 @@ type testStruct struct {
 	anint    int
 }
 
+func (s *testStruct) equal(other *testStruct) error {
+	if s.ID != other.ID {
+		return fmt.Errorf("New ID: %d doesn't match orig: %d\n", other.ID, s.ID)
+	}
+	if s.Name != other.Name {
+		return fmt.Errorf("New Name: %s doesn't match orig: %s\n", other.Name, s.Name)
+	}
+	if s.Kind != other.Kind {
+		return fmt.Errorf("New Kind: %d doesn't match orig: %d\n", other.Kind, s.Kind)
+	}
+	if s.Data != other.Data {
+		return fmt.Errorf("New Data: %s doesn't match orig: %s\n", other.Data, s.Data)
+	}
+	if s.Modified.UTC().Truncate(time.Second) != other.Modified.UTC().Truncate(time.Second) {
+		return fmt.Errorf("New Modified: %s doesn't match orig: %s\n", other.Modified, s.Modified)
+	}
+	return nil
+}
+
 func (s *testStruct) Names() []string {
 	return []string{
 		"ID",
@@ -128,6 +147,7 @@ func structDb(t *testing.T) DBU {
 		w = os.Stdout
 	}
 	if testing.Verbose() {
+		fmt.Println("we are verbose")
 		out = os.Stdout
 	}
 	dbs, err := NewRqlite("http://rbox1:4001", out, w)
@@ -136,6 +156,9 @@ func structDb(t *testing.T) DBU {
 	}
 	if _, err = dbs.dbs.Write(canned()); err != nil {
 		t.Fatal(err)
+	}
+	if testing.Verbose() {
+		dbs.debug = true
 	}
 	return dbs
 }
@@ -268,6 +291,56 @@ func TestListQuery(t *testing.T) {
 	db.ListQuery(list, "(id % 10) = 0 limit 5")
 	for _, item := range *list {
 		t.Logf("TENS:  %+v\n", item)
+	}
+}
+
+func TestAdd(t *testing.T) {
+	const unique = "yoowho"
+	db := structDb(t)
+	s1 := &testStruct{
+		Name:     unique,
+		Kind:     2,
+		Modified: time.Now().Truncate(time.Second).UTC(),
+	}
+	if err := db.Add(s1); err != nil {
+		t.Fatal(err)
+	}
+	s2 := &testStruct{
+		ID: s1.ID,
+	}
+	if err := db.LoadSelf(s2); err != nil {
+		t.Fatal(err)
+	}
+	if err := s1.equal(s2); err != nil {
+		t.Fatalf("\nerror: %v\n\nexpected: %+v\n but got: %+v\n", err, *s1, *s2)
+	}
+}
+
+func TestUpdate(t *testing.T) {
+	const unique = "heynow"
+	db := structDb(t)
+	orig := &testStruct{
+		Name:     unique,
+		Kind:     2,
+		Modified: time.Now().Truncate(time.Second).UTC(),
+	}
+	if err := db.Add(orig); err != nil {
+		t.Fatal(err)
+	}
+	orig.Kind = 2016
+	orig.Name = "updated"
+	if err := db.Update(orig); err != nil {
+		t.Fatal(err)
+	}
+
+	dupe := &testStruct{
+		ID: orig.ID,
+	}
+	if err := db.LoadSelf(dupe); err != nil {
+		t.Fatal(err)
+	}
+	if err := orig.equal(dupe); err != nil {
+		t.Fatalf("\nerror: %v\n\nexpected: %+v\n but got: %+v\n", err, *orig, *dupe)
 	}
 }
 

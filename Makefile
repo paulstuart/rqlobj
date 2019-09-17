@@ -1,4 +1,5 @@
-.PHONY: help run-tests test-shell up down start init clean-logs ps githooks dev-container docker-clean rbox1 info go
+.PHONY: help run-tests test-shell up down start init clean-logs ps githooks dev-container docker-clean rbox1 info go profile html show cover escape
+
 .DEFAULT_GOAL := help
 DOCKER_BUILDKIT=1
 export DOCKER_BUILDKIT
@@ -48,3 +49,18 @@ start-containers: down dev-container up ## Build dev container and start the sta
 
 ps: ## show docker ps
 	@docker-compose ps
+
+profile:
+	@go test -coverprofile cover.out
+
+html:
+	@go tool cover -html cover.out
+
+show:	profile html
+
+cover:
+	@go test -cover $(arg1)  $(goflags) ./...
+
+escape:
+	@go build -gcflags '-m' db.go lite.go table.go
+
