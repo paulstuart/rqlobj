@@ -1,4 +1,4 @@
-.PHONY: help run-tests test up down start init clean-logs ps githooks dev-container docker-clean rbox1 info go profile html show cover escape
+.PHONY: help run-tests test up down start init clean-logs ps githooks dev-container docker-clean rbox1 info go profile html show cover escape get
 
 .DEFAULT_GOAL := help
 DOCKER_BUILDKIT=1
@@ -66,3 +66,6 @@ escape:
 
 test:
 	http_proxy=http://localhost:8888/ go test ./...
+
+get:
+	@go get -u -t ./...
