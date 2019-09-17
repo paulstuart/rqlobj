@@ -1,3 +1,9 @@
+// Package rqlobj provides basic object relational mapping against an sql database
+//
+// Originally developed against SQLite using runtime reflection to generate queries.
+//
+// The next version incorporated SQL fragment generation that exposed the struct tag
+// data and allowed creating queries without reflection.
 package rqlobj
 
 import (
@@ -53,20 +59,49 @@ func (db DBU) debugf(msg string, args ...interface{}) {
 	}
 }
 
-// DBObject provides methods for object storage
-// The functions are generated for each object
-// annotated accordingly
+/*
+CREATE
+READ
+UPDATE
+DELETE
+*/
+// DXo object
+type DXo interface {
+	// return an unqualified query that selects all fields
+	SelectQuery() string
+
+	// return the 'where' string to retrieve an object by it's primary key(s)
+	SelectWhere() string
+
+	// return a list of pointers for all fields
+	SelectReceivers() []interface{}
+}
+
+// DBObject interface provides methods for object storage
+// in an sql database.  The functions are generated for each
+// relevant struct type that are annotated accordingly
 type DBObject interface {
 	// TableName is the name of the sql table
 	TableName() string
 
-	// KeyFields are the names of the table fields
-	// comprising the primary id
-	KeyField() string
+	// Primary returns an int64 and a bool
+	// representing the int64 primary key, and 'true'
+	// if it is valid (0 is valid for uninitialized)
+	Primary() (int64, bool)
+
+	// SetPrimary updates the primary key
+	SetPrimary(int64)
 
 	// KeyNames are the struct names of the
 	// primary id fields
-	KeyName() string
+	KeyNames() []string
+
+	// KeyValues returns the value(s) of the object key(s)
+	KeyValues() []interface{}
+
+	// KeyFields are the names of the table fields
+	// comprising the primary id
+	KeyFields() []string
 
 	// Names returns the struct element names
 	Names() []string
@@ -76,27 +111,18 @@ type DBObject interface {
 	SelectFields() string
 
 	// InsertFields returns the comma separated
-	// list of fields to be selected
+	// list of fields to be inserted
 	InsertFields() string
-
-	// Key returns the int64 id value of the object
-	Key() int64
-
-	// SetID updates the id of the object
-	SetID(int64)
 
 	// InsertValues returns the values of the object to be inserted
 	InsertValues() []interface{}
 
-	// InsertValues returns the values of the object to be updated
+	// UpdateValues returns the values of the object to be updated
 	UpdateValues() []interface{}
 
-	// MemberPointers  returns a slice of pointers to values
-	// for the db scan function
-	MemberPointers() []interface{}
-
-	// ModifiedBy returns the user id and timestamp of when the object was last modified
-	//ModifiedBy(int64, time.Time)
+	// Receivers  returns a slice of pointers to values
+	// for the db Scan function
+	Receivers() []interface{}
 }
 
 // prepare item as sql query value
@@ -131,8 +157,13 @@ func fieldList(list ...interface{}) string {
 
 func insertFields(o DBObject) string {
 	list := strings.Split(o.InsertFields(), ",")
+	keys := o.KeyFields()
+	omit := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		omit[k] = struct{}{}
+	}
 	for i, p := range list {
-		if p == o.KeyField() {
+		if _, ok := omit[p]; ok {
 			list = append(list[:i], list[i+1:]...)
 		}
 	}
@@ -153,7 +184,28 @@ func replaceQuery(o DBObject) string {
 }
 
 func updateQuery(o DBObject) string {
-	return fmt.Sprintf("update %s set %s where %s=%d", o.TableName(), setParams(insertFields(o)), o.KeyField(), o.Key())
+	if id, ok := o.Primary(); ok {
+		return fmt.Sprintf("update %s set %s where %s=%d", o.TableName(), setParams(insertFields(o)), o.KeyFields()[0], id)
+	}
+	values := o.KeyValues()
+	var where strings.Builder
+	for i, key := range o.KeyFields() {
+		if i > 0 {
+			where.WriteString(" and ")
+		}
+		where.WriteString(key)
+		where.WriteString("=")
+		switch val := values[i].(type) {
+		case string:
+			where.WriteByte('\'')
+			where.WriteString(val)
+			where.WriteByte('\'')
+		default:
+			where.WriteString(fmt.Sprint(val))
+		}
+	}
+
+	return fmt.Sprintf("update %s set %s where %s", o.TableName(), setParams(insertFields(o)), where.String())
 }
 
 func deleteQuery(o DBObject, key int64) string {
@@ -161,7 +213,20 @@ func deleteQuery(o DBObject, key int64) string {
 	if key == 0 {
 		return fmt.Sprintf("delete from %s;", o.TableName())
 	}
-	return fmt.Sprintf("delete from %s where %s=%v;", o.TableName(), o.KeyField(), key)
+	return fmt.Sprintf("delete from %s where %s=%v;", o.TableName(), o.KeyFields(), key)
+}
+
+func within(s string, list []string) bool {
+	for _, item := range list {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+func join(list []string) string {
+	return strings.Join(list, ",")
 }
 
 func upsertQuery(o DBObject) string {
@@ -171,8 +236,11 @@ func upsertQuery(o DBObject) string {
 	for i := 0; i < len(fields); i++ {
 		//fmt.Printf("%d/%d %T:%v\n", i+1, len(values), values[i], values[i])
 		p := fields[i]
-		if p == o.KeyField() {
+		//if p == o.KeyFields() {
+		if within(p, o.KeyFields()) {
+			// nada, just to skip the continue
 		} else if t, ok := values[i].(time.Time); ok && !t.IsZero() {
+			// nada, just to skip the continue
 		} else {
 			continue
 		}
@@ -181,7 +249,7 @@ func upsertQuery(o DBObject) string {
 		values = append(values[:i], values[i+1:]...)
 	}
 	const text = "INSERT into %s (%s) values(%s) on conflict(%s) do nothing"
-	return fmt.Sprintf(text, o.TableName(), strings.Join(fields, ","), fieldList(values...), o.KeyField())
+	return fmt.Sprintf(text, o.TableName(), join(fields), fieldList(values...), join(o.KeyFields()))
 }
 
 // Add new object to datastore
@@ -189,10 +257,13 @@ func (db DBU) Add(o DBObject) error {
 	query := upsertQuery(o)
 	results, err := db.Write(query)
 	if err != nil {
+		for _, result := range results {
+			fmt.Println("RES ERR:", result.Err)
+		}
 		return err
 	}
 	if len(results) > 0 {
-		o.SetID(results[0].LastInsertID)
+		o.SetPrimary(results[0].LastInsertID)
 	}
 	return nil
 }
@@ -212,14 +283,17 @@ func (db DBU) Update(o DBObject) error {
 		return err
 	}
 	if len(results) > 0 {
-		o.SetID(results[0].LastInsertID)
+		o.SetPrimary(results[0].LastInsertID)
 	}
 	return nil
 }
 
 // Delete object from datastore
 func (db DBU) Delete(o DBObject) error {
-	return db.DeleteByID(o, o.Key())
+	if id, ok := o.Primary(); ok {
+		return db.DeleteByID(o, id)
+	}
+	return nil
 }
 
 // DeleteByID object from datastore by id
@@ -243,11 +317,6 @@ func (db DBU) DeleteAll(o DBObject) error {
 	return db.DeleteByID(o, 0)
 }
 
-// List objects from datastore
-func (db DBU) List(list DBList) error {
-	return db.ListQuery(list, "")
-}
-
 // Load loads an object matching the given keys
 func (db DBU) Load(o DBObject, keys map[string]interface{}) error {
 	where := make([]string, 0, len(keys))
@@ -256,7 +325,7 @@ func (db DBU) Load(o DBObject, keys map[string]interface{}) error {
 	}
 	const text = "select %s from %s where %s"
 	query := fmt.Sprintf(text, o.SelectFields(), o.TableName(), strings.Join(where, " and "))
-	return db.get(o.MemberPointers(), query)
+	return db.get(o.Receivers(), query)
 }
 
 // LoadBy loads an  object matching the given key/value
@@ -266,24 +335,28 @@ func (db DBU) LoadBy(o DBObject, key string, value interface{}) error {
 		text = "select %s from %s where %s='%s'"
 	}
 	query := fmt.Sprintf(text, o.SelectFields(), o.TableName(), key, value)
-	return db.get(o.MemberPointers(), query)
+	return db.get(o.Receivers(), query)
 }
 
+/*
 // LoadByID loads an object based on a given ID
 func (db DBU) LoadByID(o DBObject, value interface{}) error {
-	return db.LoadBy(o, o.KeyField(), value)
+	return db.LoadBy(o, o.KeyFields(), value)
 }
+*/
 
 // LoadSelf loads an object based on it's current ID
+/*
 func (db DBU) LoadSelf(o DBObject) error {
-	if len(o.KeyField()) == 0 {
+	if len(o.KeyFields()) == 0 {
 		return ErrNoKeyField
 	}
 	if o.Key() == 0 {
 		return ErrKeyMissing
 	}
-	return db.LoadBy(o, o.KeyField(), o.Key())
+	return db.LoadBy(o, o.KeyFields(), o.Key())
 }
+*/
 
 // DBList is the interface for a list of db objects
 type DBList interface {
@@ -292,6 +365,7 @@ type DBList interface {
 
 	// SQLResults takes a Scan function
 	SQLResults(func(...interface{}) error) error
+	//SQLResults() []interface{}
 }
 
 // typeinfo returns a string with interface info
@@ -306,11 +380,19 @@ func typeinfo(list ...interface{}) string {
 	return buf.String()
 }
 
+// List objects from datastore
+func (db DBU) List(list DBList) error {
+	return db.ListQuery(list, "")
+}
+
 // ListQuery updates a list of objects
 func (db DBU) ListQuery(list DBList, where string) error {
 	query := list.SQLGet(where)
 	results, err := db.dbs.Query([]string{query})
 	if err != nil {
+		for _, res := range results {
+			fmt.Println("LQ ERR:", res.Err)
+		}
 		return err
 	}
 	for _, result := range results {

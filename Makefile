@@ -18,7 +18,7 @@ info:
 rbox1: ## exec into rbox1 for testing
 	@docker-compose exec -w /rqlite-v4.5.0-linux-amd64 rbox1 bash
 
-up:  ## bring up docker compose in background
+up:  down ## bring up docker compose in background
 	docker-compose up -d
 
 down: ## Run docker-compose down, stopping all the containers

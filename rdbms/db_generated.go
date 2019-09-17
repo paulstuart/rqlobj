@@ -2,10 +2,6 @@
 
 package main
 
-import (
-	"time"
-)
-
 //
 // testStruct DBObject generator
 //
@@ -16,36 +12,40 @@ func (o testStruct) NewObj() interface{} {
 //
 // testStruct DBObject interface functions
 //
+func (o *testStruct) Primary() (int64, bool) {
+	return o.ID, true
+}
+
 func (o *testStruct) InsertValues() []interface{} {
-	return []interface{}{o.Name, o.Kind, o.Data, o.When, o.Timestamp}
+	return []interface{}{o.Name, o.Kind, o.Data, o.Timestamp, o.When}
 }
 
 func (o *testStruct) UpdateValues() []interface{} {
-	return []interface{}{o.Name, o.Kind, o.Data, o.When, o.Timestamp, o.ID}
+	return []interface{}{o.Name, o.Kind, o.Data, o.Timestamp, o.When, o.ID}
 }
 
-func (o *testStruct) MemberPointers() []interface{} {
-	return []interface{}{&o.ID, &o.Name, &o.Kind, &o.Data, &o.When, &o.Timestamp}
+func (o *testStruct) Receivers() []interface{} {
+	return []interface{}{&o.ID, &o.Name, &o.Kind, &o.Data, &o.Timestamp, &o.When}
 }
 
-func (o *testStruct) Key() int64 {
-	return o.ID
+func (o *testStruct) Keys() []interface{} {
+	return []interface{}{o.ID}
 }
 
-func (o *testStruct) SetID(id int64) {
+func (o *testStruct) SetPrimary(id int64) {
 	o.ID = id
 }
 
 type _testStruct []testStruct
 
-func (o *_testStruct) SQLGet(where string) string {
-	return "select id,name,kind,data,ts2,ts from structs " + where + ";"
+func (o *_testStruct) SQLGet(extra string) string {
+	return "select id,name,kind,data,ts,ts2 from rdbms_structs " + extra + ";"
 }
 
 // SQLResults takes the equivalent of the Scan function in database/sql
 func (o *_testStruct) SQLResults(fn func(...interface{}) error) error {
 	var add testStruct
-	if err := fn((&add).MemberPointers()...); err != nil {
+	if err := fn((&add).Receivers()...); err != nil {
 		return err
 	}
 	*o = append(*o, add)
@@ -53,28 +53,25 @@ func (o *_testStruct) SQLResults(fn func(...interface{}) error) error {
 }
 
 func (o *testStruct) TableName() string {
-	return "structs"
+	return "rdbms_structs"
 }
 
 func (o *testStruct) SelectFields() string {
-	return "id,name,kind,data,ts2,ts"
+	return "id,name,kind,data,ts,ts2"
 }
 
 func (o *testStruct) InsertFields() string {
-	return "name,kind,data,ts2,ts"
+	return "name,kind,data,ts,ts2"
 }
 
-func (o *testStruct) KeyField() string {
-	return "id"
+func (o *testStruct) KeyFields() []string {
+	return []string{"id"}
 }
 
-func (o *testStruct) KeyName() string {
-	return "ID"
+func (o *testStruct) KeyNames() []string {
+	return []string{"ID"}
 }
 
 func (o *testStruct) Names() []string {
-	return []string{"Name", "Kind", "Data", "When", "Timestamp"}
-}
-
-func (o *testStruct) ModifiedBy(user int64, t time.Time) {
+	return []string{"Name", "Kind", "Data", "Timestamp", "When"}
 }

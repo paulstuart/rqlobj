@@ -2,10 +2,6 @@
 
 package main
 
-import (
-	"time"
-)
-
 //
 // Generator DBObject generator
 //
@@ -16,6 +12,10 @@ func (o Generator) NewObj() interface{} {
 //
 // Generator DBObject interface functions
 //
+func (o *Generator) Primary() (int64, bool) {
+	return 0, false
+}
+
 func (o *Generator) InsertValues() []interface{} {
 	return []interface{}{o.buf}
 }
@@ -24,15 +24,15 @@ func (o *Generator) UpdateValues() []interface{} {
 	return []interface{}{o.buf}
 }
 
-func (o *Generator) MemberPointers() []interface{} {
+func (o *Generator) Receivers() []interface{} {
 	return []interface{}{&o.buf}
 }
 
-func (o *Generator) Key() int64 {
-	return 0
+func (o *Generator) Keys() []interface{} {
+	return nil
 }
 
-func (o *Generator) SetID(id int64) {
+func (o *Generator) SetPrimary(_ int64) {
 }
 
 type _Generator []Generator
@@ -44,7 +44,7 @@ func (o *_Generator) SQLGet(extra string) string {
 // SQLResults takes the equivalent of the Scan function in database/sql
 func (o *_Generator) SQLResults(fn func(...interface{}) error) error {
 	var add Generator
-	if err := fn((&add).MemberPointers()...); err != nil {
+	if err := fn((&add).Receivers()...); err != nil {
 		return err
 	}
 	*o = append(*o, add)
@@ -63,19 +63,16 @@ func (o *Generator) InsertFields() string {
 	return "buf"
 }
 
-func (o *Generator) KeyField() string {
-	return ""
+func (o *Generator) KeyFields() []string {
+	return []string{}
 }
 
-func (o *Generator) KeyName() string {
-	return ""
+func (o *Generator) KeyNames() []string {
+	return []string{}
 }
 
 func (o *Generator) Names() []string {
 	return []string{"buf"}
-}
-
-func (o *Generator) ModifiedBy(user int64, t time.Time) {
 }
 
 //
@@ -88,35 +85,39 @@ func (o Package) NewObj() interface{} {
 //
 // Package DBObject interface functions
 //
+func (o *Package) Primary() (int64, bool) {
+	return 0, false
+}
+
 func (o *Package) InsertValues() []interface{} {
-	return []interface{}{o.dir, o.name, o.fakeTime}
+	return []interface{}{o.name, o.fakeTime}
 }
 
 func (o *Package) UpdateValues() []interface{} {
-	return []interface{}{o.dir, o.name, o.fakeTime}
+	return []interface{}{o.name, o.fakeTime, o.dir}
 }
 
-func (o *Package) MemberPointers() []interface{} {
+func (o *Package) Receivers() []interface{} {
 	return []interface{}{&o.dir, &o.name, &o.fakeTime}
 }
 
-func (o *Package) Key() int64 {
-	return 0
+func (o *Package) Keys() []interface{} {
+	return []interface{}{o.dir}
 }
 
-func (o *Package) SetID(id int64) {
+func (o *Package) SetPrimary(_ int64) {
 }
 
 type _Package []Package
 
 func (o *_Package) SQLGet(extra string) string {
-	return "select dir,name,fake from pkg " + extra + ";"
+	return "select pkgdir,name,fake from pkg " + extra + ";"
 }
 
 // SQLResults takes the equivalent of the Scan function in database/sql
 func (o *_Package) SQLResults(fn func(...interface{}) error) error {
 	var add Package
-	if err := fn((&add).MemberPointers()...); err != nil {
+	if err := fn((&add).Receivers()...); err != nil {
 		return err
 	}
 	*o = append(*o, add)
@@ -128,24 +129,242 @@ func (o *Package) TableName() string {
 }
 
 func (o *Package) SelectFields() string {
-	return "dir,name,fake"
+	return "pkgdir,name,fake"
 }
 
 func (o *Package) InsertFields() string {
-	return "dir,name,fake"
+	return "name,fake"
 }
 
-func (o *Package) KeyField() string {
-	return ""
+func (o *Package) KeyFields() []string {
+	return []string{"pkgdir"}
 }
 
-func (o *Package) KeyName() string {
-	return ""
+func (o *Package) KeyNames() []string {
+	return []string{"dir"}
 }
 
 func (o *Package) Names() []string {
-	return []string{"dir", "name", "fakeTime"}
+	return []string{"name", "fakeTime"}
 }
 
-func (o *Package) ModifiedBy(user int64, t time.Time) {
+//
+// hasPrimary DBObject generator
+//
+func (o hasPrimary) NewObj() interface{} {
+	return new(hasPrimary)
+}
+
+//
+// hasPrimary DBObject interface functions
+//
+func (o *hasPrimary) Primary() (int64, bool) {
+	return o.ID, true
+}
+
+func (o *hasPrimary) InsertValues() []interface{} {
+	return []interface{}{o.Name, o.Kind, o.Data, o.Created}
+}
+
+func (o *hasPrimary) UpdateValues() []interface{} {
+	return []interface{}{o.Name, o.Kind, o.Data, o.Created, o.ID}
+}
+
+func (o *hasPrimary) Receivers() []interface{} {
+	return []interface{}{&o.ID, &o.Name, &o.Kind, &o.Data, &o.Created}
+}
+
+func (o *hasPrimary) Keys() []interface{} {
+	return []interface{}{o.ID}
+}
+
+func (o *hasPrimary) SetPrimary(id int64) {
+	o.ID = id
+}
+
+type _hasPrimary []hasPrimary
+
+func (o *_hasPrimary) SQLGet(extra string) string {
+	return "select id,name,kind,data,created from teststruct " + extra + ";"
+}
+
+// SQLResults takes the equivalent of the Scan function in database/sql
+func (o *_hasPrimary) SQLResults(fn func(...interface{}) error) error {
+	var add hasPrimary
+	if err := fn((&add).Receivers()...); err != nil {
+		return err
+	}
+	*o = append(*o, add)
+	return nil
+}
+
+func (o *hasPrimary) TableName() string {
+	return "teststruct"
+}
+
+func (o *hasPrimary) SelectFields() string {
+	return "id,name,kind,data,created"
+}
+
+func (o *hasPrimary) InsertFields() string {
+	return "name,kind,data,created"
+}
+
+func (o *hasPrimary) KeyFields() []string {
+	return []string{"id"}
+}
+
+func (o *hasPrimary) KeyNames() []string {
+	return []string{"ID"}
+}
+
+func (o *hasPrimary) Names() []string {
+	return []string{"Name", "Kind", "Data", "Created"}
+}
+
+//
+// hasMany DBObject generator
+//
+func (o hasMany) NewObj() interface{} {
+	return new(hasMany)
+}
+
+//
+// hasMany DBObject interface functions
+//
+func (o *hasMany) Primary() (int64, bool) {
+	return 0, false
+}
+
+func (o *hasMany) InsertValues() []interface{} {
+	return []interface{}{o.Name, o.Kind, o.Data, o.Created}
+}
+
+func (o *hasMany) UpdateValues() []interface{} {
+	return []interface{}{o.Name, o.Kind, o.Data, o.Created, o.ID, o.Family}
+}
+
+func (o *hasMany) Receivers() []interface{} {
+	return []interface{}{&o.ID, &o.Family, &o.Name, &o.Kind, &o.Data, &o.Created}
+}
+
+func (o *hasMany) Keys() []interface{} {
+	return []interface{}{o.ID, o.Family}
+}
+
+func (o *hasMany) SetPrimary(_ int64) {
+}
+
+type _hasMany []hasMany
+
+func (o *_hasMany) SQLGet(extra string) string {
+	return "select id,family,name,kind,data,created from teststruct " + extra + ";"
+}
+
+// SQLResults takes the equivalent of the Scan function in database/sql
+func (o *_hasMany) SQLResults(fn func(...interface{}) error) error {
+	var add hasMany
+	if err := fn((&add).Receivers()...); err != nil {
+		return err
+	}
+	*o = append(*o, add)
+	return nil
+}
+
+func (o *hasMany) TableName() string {
+	return "teststruct"
+}
+
+func (o *hasMany) SelectFields() string {
+	return "id,family,name,kind,data,created"
+}
+
+func (o *hasMany) InsertFields() string {
+	return "name,kind,data,created"
+}
+
+func (o *hasMany) KeyFields() []string {
+	return []string{"id", "family"}
+}
+
+func (o *hasMany) KeyNames() []string {
+	return []string{"ID", "Family"}
+}
+
+func (o *hasMany) Names() []string {
+	return []string{"Name", "Kind", "Data", "Created"}
+}
+
+//
+// hasMulti DBObject generator
+//
+func (o hasMulti) NewObj() interface{} {
+	return new(hasMulti)
+}
+
+//
+// hasMulti DBObject interface functions
+//
+func (o *hasMulti) Primary() (int64, bool) {
+	return o.ID, true
+}
+
+func (o *hasMulti) InsertValues() []interface{} {
+	return []interface{}{o.Name, o.Kind, o.Data, o.Created}
+}
+
+func (o *hasMulti) UpdateValues() []interface{} {
+	return []interface{}{o.Name, o.Kind, o.Data, o.Created, o.ID, o.Sec}
+}
+
+func (o *hasMulti) Receivers() []interface{} {
+	return []interface{}{&o.ID, &o.Sec, &o.Name, &o.Kind, &o.Data, &o.Created}
+}
+
+func (o *hasMulti) Keys() []interface{} {
+	return []interface{}{o.ID, o.Sec}
+}
+
+func (o *hasMulti) SetPrimary(id int64) {
+	o.ID = id
+}
+
+type _hasMulti []hasMulti
+
+func (o *_hasMulti) SQLGet(extra string) string {
+	return "select id,other_key,name,kind,data,created from teststruct " + extra + ";"
+}
+
+// SQLResults takes the equivalent of the Scan function in database/sql
+func (o *_hasMulti) SQLResults(fn func(...interface{}) error) error {
+	var add hasMulti
+	if err := fn((&add).Receivers()...); err != nil {
+		return err
+	}
+	*o = append(*o, add)
+	return nil
+}
+
+func (o *hasMulti) TableName() string {
+	return "teststruct"
+}
+
+func (o *hasMulti) SelectFields() string {
+	return "id,other_key,name,kind,data,created"
+}
+
+func (o *hasMulti) InsertFields() string {
+	return "name,kind,data,created"
+}
+
+func (o *hasMulti) KeyFields() []string {
+	return []string{"id", "other_key"}
+}
+
+func (o *hasMulti) KeyNames() []string {
+	return []string{"ID", "Sec"}
+}
+
+func (o *hasMulti) Names() []string {
+	return []string{"Name", "Kind", "Data", "Created"}
 }

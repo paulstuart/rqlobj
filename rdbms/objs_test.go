@@ -9,21 +9,6 @@ import (
 	"github.com/paulstuart/rqlobj"
 )
 
-const testTable = `rdbms_structs`
-
-const createdb = `
-drop table if exists ` + testTable + `;
-
-create table if not exists ` + testTable + ` (
-id integer primary key,
-name text,
-kind integer,
-data text,
-ts DATETIME DEFAULT (datetime('now','utc')),
-ts2 integer DEFAULT (datetime('now','utc'))
-);
-`
-
 func TestCreate(t *testing.T) {
 	var trace io.Writer
 	if debug {
