@@ -1,4 +1,4 @@
-# rqlobj [![GoDoc](https://godoc.org/github.com/paulstuart/rqlobj?status.svg)](http://godoc.org/github.com/paulstuart/rqldbj)
+# rqlobj [![GoDoc](https://godoc.org/github.com/paulstuart/rqlobj?status.svg)](http://godoc.org/github.com/paulstuart/rqldbj)[![Build Status](https://travis-ci.com/paulstuart/rqlobj.svg?branch=master)](https://travis-ci.com/paulstuart/rqlobj)
 An Object Relational Manager (ORM) for rqlite
 
 Because rqlite does not provide the standard `*sql.DB` connection, it will not work with existing ORMs, which all wrap around that interface.
