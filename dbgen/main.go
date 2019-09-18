@@ -469,10 +469,12 @@ func (f *File) genDecl(node ast.Node) bool {
 // buildWrappers generates the variables and String method for a single run of contiguous values.
 func (g *Generator) buildWrappers(s *SQLInfo) {
 	var insert_fields, names, elem, ptr, set, sql []string
+	keyField := make(map[string]struct{})
 	// fields for sql keys and regular are presented seperately. join them.
 	sql = append(sql, s.KeyFields...)
-	for _, name := range s.KeyNames {
+	for i, name := range s.KeyNames {
 		ptr = append(ptr, "&o."+name)
+		keyField[s.KeyFields[i]] = struct{}{}
 	}
 	for _, k := range s.Order {
 		if k != "" {
@@ -522,20 +524,26 @@ func (g *Generator) buildWrappers(s *SQLInfo) {
 	g.Printf(metaSelectFields, s.Name, strings.Join(sql, ","))
 	g.Printf(metaInsertFields, s.Name, strings.Join(insert_fields, ","))
 	fields := quoteList(s.KeyFields)
-	//fmt.Println("KF NAME:", s.Name)
 	g.Printf(metaKeyFields, s.Name, fields)
 	keyNames := quoteList(s.KeyNames)
-	//fmt.Printf("META:%s--KEY:%s.\n", s.Name, keyNames)
 	g.Printf(metaKeyNames, s.Name, keyNames)
 	g.Printf(metaElements, s.Name, qList(names))
-	// TODO: add support for default values
-	//g.Printf(metaSQLCreate, s.Name, s.Table, rowString(append(s.KeyFields, s.Order...), s.Types, s.Primary), "`")
-	g.Printf(metaSQLCreate, s.Name, s.Table, rowString(sql, s.Types, s.Primary), "`")
+
+	// TODO: add support for default values <======================================================= SOON!
+
+	g.Printf(metaSQLCreate, s.Name, s.Table, rowString(sql, s.Types, keyField, s.Primary), "`")
+}
+
+// TODO: apply this struct for enhanced table generation
+type Field struct {
+	Check   string
+	Default string // make interface{} ?
+	Unique  bool
 }
 
 // convert a list of column defs to a string
 // TODO: generate indexes for tables with multiple keys
-func rowString(fields, types []string, primary bool) string {
+func rowString(fields, types []string, keys map[string]struct{}, primary bool) string {
 	var buf strings.Builder
 	if len(fields) != len(types) {
 		const msg = "slice sizes don't match for fields:%d -- types:%d\n"
@@ -549,8 +557,10 @@ func rowString(fields, types []string, primary bool) string {
 		buf.WriteString(field)
 		buf.WriteString(" ")
 		buf.WriteString(types[i])
-		if primary && i == 0 {
-			buf.WriteString(" primary key")
+		if _, ok := keys[field]; ok && len(keys) == 1 {
+			if (primary || len(keys) > 1) && i == 0 {
+				buf.WriteString(" primary key")
+			}
 		}
 	}
 	//buf.WriteString("\n")

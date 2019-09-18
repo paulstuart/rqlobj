@@ -108,7 +108,7 @@ func (o *Package) Receivers() []interface{} {
 	return []interface{}{&o.dir, &o.name, &o.fakeTime}
 }
 
-func (o *Package) Keys() []interface{} {
+func (o *Package) KeyValues() []interface{} {
 	return []interface{}{o.dir}
 }
 
@@ -160,7 +160,7 @@ func (o *Package) SQLCreate() string {
 	return `create table if not exists pkg (
 	  pkgdir text,
   name text,
-  fakeTime datetime
+  fake datetime
 	);`
 }
 
@@ -190,7 +190,7 @@ func (o *hasPrimary) Receivers() []interface{} {
 	return []interface{}{&o.ID, &o.Name, &o.Kind, &o.Data, &o.Created}
 }
 
-func (o *hasPrimary) Keys() []interface{} {
+func (o *hasPrimary) KeyValues() []interface{} {
 	return []interface{}{o.ID}
 }
 
@@ -241,11 +241,11 @@ func (o *hasPrimary) Elements() []string {
 // SQLCreate returns a query to create a table for the object
 func (o *hasPrimary) SQLCreate() string {
 	return `create table if not exists teststruct (
-	  id integer primary key,
-  Name text,
-  Kind integer,
-  Data text,
-  Created datetime
+	  id integer,
+  name text,
+  kind integer,
+  data text,
+  created datetime
 	);`
 }
 
@@ -275,7 +275,7 @@ func (o *hasMany) Receivers() []interface{} {
 	return []interface{}{&o.ID, &o.Family, &o.Name, &o.Kind, &o.Data, &o.Created}
 }
 
-func (o *hasMany) Keys() []interface{} {
+func (o *hasMany) KeyValues() []interface{} {
 	return []interface{}{o.ID, o.Family}
 }
 
@@ -327,10 +327,10 @@ func (o *hasMany) SQLCreate() string {
 	return `create table if not exists teststruct (
 	  id integer,
   family text,
-  Name text,
-  Kind integer,
-  Data text,
-  Created datetime
+  name text,
+  kind integer,
+  data text,
+  created datetime
 	);`
 }
 
@@ -360,7 +360,7 @@ func (o *hasMulti) Receivers() []interface{} {
 	return []interface{}{&o.ID, &o.Sec, &o.Name, &o.Kind, &o.Data, &o.Created}
 }
 
-func (o *hasMulti) Keys() []interface{} {
+func (o *hasMulti) KeyValues() []interface{} {
 	return []interface{}{o.ID, o.Sec}
 }
 
@@ -412,9 +412,9 @@ func (o *hasMulti) SQLCreate() string {
 	return `create table if not exists teststruct (
 	  id integer,
   other_key integer,
-  Name text,
-  Kind integer,
-  Data text,
-  Created datetime
+  name text,
+  kind integer,
+  data text,
+  created datetime
 	);`
 }
