@@ -529,7 +529,9 @@ func (g *Generator) buildWrappers(s *SQLInfo) {
 	//fmt.Printf("META:%s--KEY:%s.\n", s.Name, keyNames)
 	g.Printf(metaKeyNames, s.Name, keyNames)
 	g.Printf(metaElements, s.Name, qList(names))
-	g.Printf(metaSQLCreate, s.Name, s.Table, rowString(append(s.KeyFields, s.Order...), s.Types, s.Primary), "`")
+	// TODO: add support for default values
+	//g.Printf(metaSQLCreate, s.Name, s.Table, rowString(append(s.KeyFields, s.Order...), s.Types, s.Primary), "`")
+	g.Printf(metaSQLCreate, s.Name, s.Table, rowString(sql, s.Types, s.Primary), "`")
 }
 
 // convert a list of column defs to a string
