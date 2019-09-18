@@ -64,7 +64,7 @@ cover:
 escape:
 	@go build -gcflags '-m' db.go lite.go table.go
 
-test:
+test:	## test project (use $GO_TEST to modify)
 	http_proxy=http://localhost:8888/ go test ./... $(GO_TEST)
 
 get:
