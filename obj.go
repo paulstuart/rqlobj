@@ -127,8 +127,16 @@ func formatted(item interface{}) string {
 			return "null"
 		}
 		return fmt.Sprint(item.Unix())
+	case int:
+		return strconv.Itoa(item)
+	case int64:
+		return strconv.Itoa(int(item))
+	case uint64:
+		return strconv.FormatUint(item, 10)
+	case uint32:
+		return strconv.FormatUint(uint64(item), 10)
 	}
-	return fmt.Sprint(item)
+	return fmt.Sprintf("'%s'", item)
 }
 
 func fieldList(list ...interface{}) string {
@@ -136,6 +144,10 @@ func fieldList(list ...interface{}) string {
 	for i, item := range list {
 		if i > 0 {
 			buf.WriteString(", ")
+		}
+		if item == nil {
+			buf.WriteString("null")
+			continue
 		}
 		buf.WriteString(formatted(item))
 	}
@@ -244,7 +256,6 @@ func upsertQuery(o DBObject) string {
 	for i := 0; i < len(fields); i++ {
 		//fmt.Printf("%d/%d %T:%v\n", i+1, len(values), values[i], values[i])
 		p := fields[i]
-		//if p == o.KeyFields() {
 		if within(p, o.KeyFields()) {
 			// nada, just to skip the continue
 		} else if t, ok := values[i].(time.Time); ok && !t.IsZero() {
