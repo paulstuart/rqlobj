@@ -71,8 +71,15 @@ func (o *Generator) KeyNames() []string {
 	return []string{}
 }
 
-func (o *Generator) Names() []string {
+func (o *Generator) Elements() []string {
 	return []string{"buf"}
+}
+
+// SQLCreate returns a query to create a table for the object
+func (o *Generator) SQLCreate() string {
+	return `create table if not exists generator (
+	  buf text
+	);`
 }
 
 //
@@ -144,8 +151,17 @@ func (o *Package) KeyNames() []string {
 	return []string{"dir"}
 }
 
-func (o *Package) Names() []string {
+func (o *Package) Elements() []string {
 	return []string{"name", "fakeTime"}
+}
+
+// SQLCreate returns a query to create a table for the object
+func (o *Package) SQLCreate() string {
+	return `create table if not exists pkg (
+	  pkgdir text,
+  name text,
+  fakeTime datetime
+	);`
 }
 
 //
@@ -218,8 +234,19 @@ func (o *hasPrimary) KeyNames() []string {
 	return []string{"ID"}
 }
 
-func (o *hasPrimary) Names() []string {
+func (o *hasPrimary) Elements() []string {
 	return []string{"Name", "Kind", "Data", "Created"}
+}
+
+// SQLCreate returns a query to create a table for the object
+func (o *hasPrimary) SQLCreate() string {
+	return `create table if not exists teststruct (
+	  id integer primary key,
+  Name text,
+  Kind integer,
+  Data text,
+  Created datetime
+	);`
 }
 
 //
@@ -291,8 +318,20 @@ func (o *hasMany) KeyNames() []string {
 	return []string{"ID", "Family"}
 }
 
-func (o *hasMany) Names() []string {
+func (o *hasMany) Elements() []string {
 	return []string{"Name", "Kind", "Data", "Created"}
+}
+
+// SQLCreate returns a query to create a table for the object
+func (o *hasMany) SQLCreate() string {
+	return `create table if not exists teststruct (
+	  id integer,
+  family text,
+  Name text,
+  Kind integer,
+  Data text,
+  Created datetime
+	);`
 }
 
 //
@@ -306,7 +345,7 @@ func (o hasMulti) NewObj() interface{} {
 // hasMulti DBObject interface functions
 //
 func (o *hasMulti) Primary() (int64, bool) {
-	return o.ID, true
+	return 0, false
 }
 
 func (o *hasMulti) InsertValues() []interface{} {
@@ -325,8 +364,7 @@ func (o *hasMulti) Keys() []interface{} {
 	return []interface{}{o.ID, o.Sec}
 }
 
-func (o *hasMulti) SetPrimary(id int64) {
-	o.ID = id
+func (o *hasMulti) SetPrimary(_ int64) {
 }
 
 type _hasMulti []hasMulti
@@ -365,6 +403,18 @@ func (o *hasMulti) KeyNames() []string {
 	return []string{"ID", "Sec"}
 }
 
-func (o *hasMulti) Names() []string {
+func (o *hasMulti) Elements() []string {
 	return []string{"Name", "Kind", "Data", "Created"}
+}
+
+// SQLCreate returns a query to create a table for the object
+func (o *hasMulti) SQLCreate() string {
+	return `create table if not exists teststruct (
+	  id integer,
+  other_key integer,
+  Name text,
+  Kind integer,
+  Data text,
+  Created datetime
+	);`
 }

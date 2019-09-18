@@ -72,6 +72,107 @@ func (o *testStruct) KeyNames() []string {
 	return []string{"ID"}
 }
 
-func (o *testStruct) Names() []string {
+func (o *testStruct) Elements() []string {
 	return []string{"Name", "Kind", "Data", "Timestamp", "When"}
+}
+
+// SQLCreate returns a query to create a table for the object
+func (o *testStruct) SQLCreate() string {
+	return `create table if not exists rdbms_structs (
+	  id integer primary key,
+  Name text,
+  Kind integer,
+  Data text,
+  Timestamp datetime,
+  When datetime
+	);`
+}
+
+//
+// testDates DBObject generator
+//
+func (o testDates) NewObj() interface{} {
+	return new(testDates)
+}
+
+//
+// testDates DBObject interface functions
+//
+func (o *testDates) Primary() (int64, bool) {
+	return o.ID, true
+}
+
+func (o *testDates) InsertValues() []interface{} {
+	return []interface{}{o.Name, o.Kind, o.Data, o.Timestamp, o.When, o.TS3, o.TS4, o.TS5}
+}
+
+func (o *testDates) UpdateValues() []interface{} {
+	return []interface{}{o.Name, o.Kind, o.Data, o.Timestamp, o.When, o.TS3, o.TS4, o.TS5, o.ID}
+}
+
+func (o *testDates) Receivers() []interface{} {
+	return []interface{}{&o.ID, &o.Name, &o.Kind, &o.Data, &o.Timestamp, &o.When, &o.TS3, &o.TS4, &o.TS5}
+}
+
+func (o *testDates) KeyValues() []interface{} {
+	return []interface{}{o.ID}
+}
+
+func (o *testDates) SetPrimary(id int64) {
+	o.ID = id
+}
+
+type _testDates []testDates
+
+func (o *_testDates) SQLGet(extra string) string {
+	return "select id,name,kind,data,ts,ts2,ts3,ts4,ts5 from rdbms_dates " + extra + ";"
+}
+
+// SQLResults takes the equivalent of the Scan function in database/sql
+func (o *_testDates) SQLResults(fn func(...interface{}) error) error {
+	var add testDates
+	if err := fn((&add).Receivers()...); err != nil {
+		return err
+	}
+	*o = append(*o, add)
+	return nil
+}
+
+func (o *testDates) TableName() string {
+	return "rdbms_dates"
+}
+
+func (o *testDates) SelectFields() string {
+	return "id,name,kind,data,ts,ts2,ts3,ts4,ts5"
+}
+
+func (o *testDates) InsertFields() string {
+	return "name,kind,data,ts,ts2,ts3,ts4,ts5"
+}
+
+func (o *testDates) KeyFields() []string {
+	return []string{"id"}
+}
+
+func (o *testDates) KeyNames() []string {
+	return []string{"ID"}
+}
+
+func (o *testDates) Elements() []string {
+	return []string{"Name", "Kind", "Data", "Timestamp", "When", "TS3", "TS4", "TS5"}
+}
+
+// SQLCreate returns a query to create a table for the object
+func (o *testDates) SQLCreate() string {
+	return `create table if not exists rdbms_dates (
+	  id integer primary key,
+  Name text,
+  Kind integer,
+  Data text,
+  Timestamp datetime,
+  When datetime,
+  TS3 datetime,
+  TS4 datetime,
+  TS5 datetime
+	);`
 }

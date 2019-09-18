@@ -68,13 +68,14 @@ import (
 // For testing
 //go:generate ./dbgen -output generated_test.go -type testStruct struct_test.go
 var (
-	tagName   = flag.String("tag", "sql", "the tag used to annotate structs")
+	tagName   = flag.String("tag", tagDefault, "the tag used to annotate structs")
 	typeNames = flag.String("type", "", "comma-separated list of type names; leave blank for all")
 	output    = flag.String("output", "", "output file name; default srcdir/db_wrapper.go")
 )
 
 const (
-	ignore = "github.com/paulstuart/dbobj.DBObject"
+	ignore     = "github.com/paulstuart/rqlobj.DBObject"
+	tagDefault = "sql"
 )
 
 // Usage is a replacement usage function for the flags package.
@@ -112,6 +113,7 @@ type SQLInfo struct {
 	UserField string              // sql field for user id
 	TimeField string              // sql field for timestamp
 	Order     []string            // sql fields in order
+	Types     []string            // data types in order
 	Fields    map[string]string   // map of struct tag to column name
 	NoUpdate  map[string]struct{} // set of fields that should not be updated
 	Primary   bool                // there is one key and it is an int64
@@ -120,7 +122,7 @@ type SQLInfo struct {
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("dbgen: ")
-	flag.Usage = Usage
+	//flag.Usage = Usage
 	flag.Parse()
 	names := strings.Split(*typeNames, ",")
 
@@ -224,9 +226,7 @@ func (g *Generator) parsePackageDir(directory string) {
 	}
 	var names []string
 	names = append(names, pkg.GoFiles...)
-	//fmt.Println("NAMES", names)
 	names = append(names, pkg.CgoFiles...)
-	// names = append(names, pkg.TestGoFiles...) // These are also in the "foo" package.
 	names = append(names, pkg.SFiles...)
 	names = prefixDirectory(directory, names)
 	g.parsePackage(directory, names, nil)
@@ -254,7 +254,7 @@ func prefixDirectory(directory string, names []string) []string {
 // If text is non-nil, it is a string to be used instead of the content of the file,
 // to be used for testing. parsePackage exits if there is an error.
 //
-// returns true if "time" package is required
+// returns true if "time" package is required (TODO: rethink that time stuff)
 func (g *Generator) parsePackage(directory string, names []string, text interface{}) bool {
 	var files []*File
 	var astFiles []*ast.File
@@ -281,6 +281,7 @@ func (g *Generator) parsePackage(directory string, names []string, text interfac
 	g.pkg.files = files
 	g.pkg.dir = directory
 	// Type check the package.
+	// Skipping for now as looking to be unneeded (TODO: affirm and delete if so)
 	//g.pkg.check(fs, astFiles)
 	return false
 }
@@ -288,9 +289,7 @@ func (g *Generator) parsePackage(directory string, names []string, text interfac
 // TODO: rethink this. For now, assume it's all good
 // check type-checks the package. The package must be OK to proceed.
 func (pkg *Package) check(fs *token.FileSet, astFiles []*ast.File) {
-	// maybe we just put that on the user to go vet before?
 	pkg.defs = make(map[*ast.Ident]types.Object)
-	//ctx := build.Default
 	config := types.Config{
 		Importer: importer.Default(),
 		//Importer: importer.For("gc", nil),
@@ -305,8 +304,6 @@ func (pkg *Package) check(fs *token.FileSet, astFiles []*ast.File) {
 			err := e.(types.Error)
 			i := strings.Index(err.Msg, "DBObject")
 			if strings.HasSuffix(err.Msg, ignore) || i > 0 {
-				//err.Msg = ""
-				//e = nil
 				return
 			}
 			// TODO: switch on err type rather than error content
@@ -362,9 +359,7 @@ func (g *Generator) format() []byte {
 }
 
 //
-//
-// Parse the tags
-//
+// Parse the tags, build tables of the metadata
 //
 func sqlTags(typeName string, fields *ast.FieldList) *SQLInfo {
 	info := SQLInfo{
@@ -380,20 +375,35 @@ func sqlTags(typeName string, fields *ast.FieldList) *SQLInfo {
 			tag := reflect.StructTag(s[1 : len(s)-1])
 			if sql := tag.Get(*tagName); sql != "" {
 				typ := fmt.Sprint(field.Type)
-				//fmt.Printf("FLD TYPE: %q\n", typ) //field.Type)
+				//fmt.Printf("FLD NAME: %q TYPE: %q\n", field.Names[0].Name, typ)
+				switch typ {
+				case "string":
+					info.Types = append(info.Types, "text")
+				case "&{time Time}":
+					info.Types = append(info.Types, "datetime")
+				case "int", "int64", "uint", "uint64":
+					info.Types = append(info.Types, "integer")
+				default:
+					info.Types = append(info.Types, "text")
+				}
 				if table := tag.Get("table"); len(table) > 0 {
 					info.Table = table
 				}
+
+				// identify its name and if key field
 				var hasKey bool
 				parts := strings.Split(sql, ",")
 				if len(parts) > 1 {
 					sql = parts[0]
-					if parts[1] != "key" {
-						log.Println("invalid option following field name:", parts[1])
-						// TODO: how to transmit an error? Panic?
-						continue
+					// using default "sql" for struct tags
+					if *tagName == tagDefault {
+						if parts[1] == "key" {
+							hasKey = true
+						} else {
+							log.Println("invalid option following field name:", parts[1])
+							// TODO: any more effort to transmit the error? Panic?
+						}
 					}
-					hasKey = true
 				}
 				if !hasKey {
 					// if not using "sql" as the struct tag,
@@ -405,22 +415,27 @@ func sqlTags(typeName string, fields *ast.FieldList) *SQLInfo {
 				}
 				if hasKey {
 					if typ == "int64" {
-						// TODO: add check to for multiple keys
-						info.Primary = true
+						if !info.Primary {
+							info.Primary = true
+						} else {
+							// more than one complicates things
+							info.Primary = false
+						}
 					} else {
 						info.Primary = false
 					}
 					info.KeyNames = append(info.KeyNames, string(field.Names[0].Name))
-					// TODO: update info.Fields too?
 					info.KeyFields = append(info.KeyFields, sql)
 					// TODO: is NoUpdate simply the intersection of keys & selects?
 					info.NoUpdate[sql] = struct{}{}
 				} else {
 					info.Fields[field.Names[0].Name] = sql
 					info.Order = append(info.Order, field.Names[0].Name)
+					//info.Types = append(info.Types, field.Type)
 				}
 				good = true
 			}
+			// note fields to be excluded from object update queries
 			if update := tag.Get("update"); len(update) > 0 {
 				if up, err := strconv.ParseBool(update); err == nil && up == false {
 					info.NoUpdate[field.Names[0].Name] = struct{}{}
@@ -435,7 +450,7 @@ func sqlTags(typeName string, fields *ast.FieldList) *SQLInfo {
 	return nil
 }
 
-// genDecl processes one declaration clause.
+// genDecl processes a declaration clause.
 func (f *File) genDecl(node ast.Node) bool {
 	switch x := node.(type) {
 	case *ast.TypeSpec:
@@ -455,7 +470,7 @@ func (f *File) genDecl(node ast.Node) bool {
 // buildWrappers generates the variables and String method for a single run of contiguous values.
 func (g *Generator) buildWrappers(s *SQLInfo) {
 	var insert_fields, names, elem, ptr, set, sql []string
-	// TODO: WTF was I doing here?
+	// fields for sql keys and regular are presented seperately. join them.
 	sql = append(sql, s.KeyFields...)
 	for _, name := range s.KeyNames {
 		ptr = append(ptr, "&o."+name)
@@ -473,7 +488,6 @@ func (g *Generator) buildWrappers(s *SQLInfo) {
 			}
 		}
 	}
-	//fmt.Printf("\nPTRS: %v\n\n", ptr)
 	g.Printf("\n\n//\n// %s DBObject generator\n//\n", s.Name)
 	g.Printf(metaNewObj, s.Name)
 	g.Printf("\n//\n// %s DBObject interface functions\n//\n", s.Name)
@@ -507,17 +521,39 @@ func (g *Generator) buildWrappers(s *SQLInfo) {
 	g.Printf(metaSQLResults, s.Name, s.Table)
 	g.Printf(metaTableName, s.Name, s.Table)
 	g.Printf(metaSelectFields, s.Name, strings.Join(sql, ","))
-	//g.Printf(metaInsertFields, s.Name, strings.Join(sql, ","))
 	g.Printf(metaInsertFields, s.Name, strings.Join(insert_fields, ","))
-	//fields := strings.Join(s.KeyFields, ",")
 	fields := quoteList(s.KeyFields)
 	//fmt.Println("KF NAME:", s.Name)
 	g.Printf(metaKeyFields, s.Name, fields)
 	keyNames := quoteList(s.KeyNames)
 	//fmt.Printf("META:%s--KEY:%s.\n", s.Name, keyNames)
 	g.Printf(metaKeyNames, s.Name, keyNames)
-	g.Printf(metaNames, s.Name, qList(names))
-	//g.Printf(auditString(s.Name, s.UserField, s.TimeField))
+	g.Printf(metaElements, s.Name, qList(names))
+	g.Printf(metaSQLCreate, s.Name, s.Table, rowString(append(s.KeyFields, s.Order...), s.Types, s.Primary), "`")
+}
+
+// convert a list of column defs to a string
+// TODO: generate indexes for tables with multiple keys
+func rowString(fields, types []string, primary bool) string {
+	var buf strings.Builder
+	if len(fields) != len(types) {
+		const msg = "slice sizes don't match for fields:%d -- types:%d\n"
+		return fmt.Sprintf(msg, len(fields), len(types))
+	}
+	for i, field := range fields {
+		if i > 0 {
+			buf.WriteString(",\n")
+		}
+		buf.WriteString("  ")
+		buf.WriteString(field)
+		buf.WriteString(" ")
+		buf.WriteString(types[i])
+		if primary && i == 0 {
+			buf.WriteString(" primary key")
+		}
+	}
+	//buf.WriteString("\n")
+	return buf.String()
 }
 
 func qList(list []string) string {
@@ -605,7 +641,7 @@ const metaReceivers = `func (o *%[1]s) Receivers() []interface{} {
 // Arguments to format are:
 //	[1]: type name
 //	[2]: key fields, e.g. o.ID,o.Name,o.Kind
-const metaKeyValues = `func (o *%[1]s) Keys() []interface{} {
+const metaKeyValues = `func (o *%[1]s) KeyValues() []interface{} {
 	return []interface{}{%[2]s}
 }
 
@@ -702,7 +738,7 @@ const metaNewObj = `func (o %[1]s) NewObj() interface{} {
 // Arguments to format are:
 //	[1]: type name
 //	[2]: member names
-const metaNames = `func (o *%[1]s) Names() []string {
+const metaElements = `func (o *%[1]s) Elements() []string {
 	return []string{%[2]s}
 }
 
@@ -725,24 +761,6 @@ const metaPrimaryInvalid = `func (o *%[1]s) Primary() (int64, bool) {
 
 `
 
-/*
-
-func auditString(name, u, t string) string {
-	args := []interface{}{name}
-	stringAudit := "func (o *%s) ModifiedBy(user int64, t time.Time) {\n"
-	if len(u) > 0 {
-		stringAudit += "o.%s = &user\n"
-		args = append(args, u)
-	}
-	if len(t) > 0 {
-		stringAudit += "o.%s = t\n"
-		args = append(args, t)
-	}
-	stringAudit += "}\n\n\n"
-	return fmt.Sprintf(stringAudit, args...)
-}
-*/
-
 // Arguments to format are:
 //	[1]: type name
 //	[2]: table name
@@ -759,7 +777,7 @@ func (o *_%[1]s) SQLGet(extra string) string {
 `
 
 /*
-	//old way
+	// funky old way to append a row
 	*o = append(*o, %[1]s{})
 	off := len(*o) - 1
 	dest := &((*o)[off])
@@ -785,50 +803,27 @@ func (o *_%[1]s) SQLResults(fn func(...interface{}) error) error {
 
 `
 
-/*
+// Arguments to format are:
+//	[1]: type name
+//	[2]: table name
+//	[3]: column declarations
+//	[4]: "`" to cheat at nesting quotes
+//			 1	 2	  3
+const metaSQLCreate = `
 
-type Scanner func(...interface{}) error
 
-// Loader is for generating multi-record responses
-type Loader interface {
-        // SQLGet generates a plain SQL query
-        // (no placeholders or parameter binding)
-        SQLGet(keys map[string]interface{}) string
-
-        // SQLResults takes a scanner interface
-        // the code should append an entry to the
-        // slice and apply the pointer to same
-        // into the scan function
-        SQLResults(Scanner) error
-*/
-
-/*
-func loadme() error {
-	var list _Generator // []Generator
-	var conn *rqlite.Connection
-	query := list.SQLGet("")
-	results, err := conn.Query([]string{query})
-	if err != nil {
-		return err
-	}
-	for _, result := range results {
-		for result.Next() {
-			if err := (&list).SQLResults(result); err != nil {
-				return err
-			}
-		}
-	}
+// SQLCreate returns a query to create a table for the object
+func (o *%[1]s) SQLCreate() string {
+	return %[4]screate table if not exists %[2]s (
+	%[3]s
+	);%[4]s
 }
 
-func (o *_Generator) SQLResults(fn Scanner) error {
-	*o = append(*o, Generator{})
-	off := len(*o) - 1
-	dest := &((*o)[off])
-	ptrs := dest.Receivers()
-	return fn(ptrs...)
-}
-*/
+`
 
+//
+// these structs are for testing `dbgen` against
+//
 type hasPrimary struct {
 	ID      int64     `sql:"id,key" table:"teststruct"`
 	Name    string    `sql:"name"`

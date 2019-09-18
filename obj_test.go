@@ -48,7 +48,19 @@ func (s *testStruct) equal(other *testStruct) error {
 	return nil
 }
 
-func (s *testStruct) Names() []string {
+func (s *testStruct) SQLCreate() string {
+	return `create table if not exists ` + tableName + ` (
+    id integer not null primary key,
+    name text,
+    kind int,
+    data blob,
+    modified DEFAULT (datetime('now','utc'))
+);`
+}
+
+// modified DATETIME DEFAULT CURRENT_TIMESTAMP
+
+func (s *testStruct) Elements() []string {
 	return []string{
 		"ID",
 		"Name",
@@ -141,7 +153,7 @@ const queryCreate = `create table if not exists ` + tableName + ` (
 
 type testMap map[int64]testStruct
 
-func structDb(t *testing.T) DBU {
+func structDb(t *testing.T) RDB {
 	var out, w io.Writer
 	if trace {
 		w = os.Stdout
@@ -237,7 +249,7 @@ func TestDBObject(t *testing.T) {
 	}
 }
 
-func testDBU(t *testing.T) *sql.DB {
+func testRDB(t *testing.T) *sql.DB {
 	return nil
 }
 

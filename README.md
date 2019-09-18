@@ -6,4 +6,4 @@ Because rqlite does not provide the standard `*sql.DB` connection, it will not w
 This project allows for using struct tags to annotate your structs that need persistence. The associated `dbgen` command is used to
 generate data handlers for these struts to enable CRUD and list operations against objects without writing any SQL.
 
-The goals of this project are to provide object mapping, and it does not include schema generation or data migrations.
+The goals of this project are to provide object mapping, and it does not include data migrations.

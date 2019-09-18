@@ -1,4 +1,4 @@
-.PHONY: help run-tests test up down start init clean-logs ps githooks dev-container docker-clean rbox1 info go profile html show cover escape get pause
+.PHONY: help test up down start init clean-logs ps githooks dev-container docker-clean rbox1 info go profile html show cover escape get pause
 
 .DEFAULT_GOAL := help
 DOCKER_BUILDKIT=1
@@ -65,10 +65,10 @@ escape:
 	@go build -gcflags '-m' db.go lite.go table.go
 
 test:
-	http_proxy=http://localhost:8888/ go test ./...
+	http_proxy=http://localhost:8888/ go test ./... $@
 
 get:
-	@go get -u -t ./...
+	@go get -v -u -t ./...
 
 pause:
 	sleep 30

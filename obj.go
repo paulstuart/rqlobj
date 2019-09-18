@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,20 +25,20 @@ var (
 	singleQuote = regexp.MustCompile("'")
 )
 
-// DBU is a database handler that works with DBOject variables
-type DBU struct {
+// RDB is a database handler that works with DBOject variables
+type RDB struct {
 	dbs   *gorqlite.Connection
 	debug bool
 	_log  *log.Logger
 }
 
 // Debug sets database debugging on/off
-func (db DBU) Debug(enable bool) {
+func (db RDB) Debug(enable bool) {
 	db.debug = enable
 }
 
 // Write will process a batch of queries and return a batch of results
-func (db DBU) Write(queries ...string) ([]gorqlite.WriteResult, error) {
+func (db RDB) Write(queries ...string) ([]gorqlite.WriteResult, error) {
 	if db.debug {
 		for _, query := range queries {
 			db.debugf("Write: %s\n", query)
@@ -47,13 +48,13 @@ func (db DBU) Write(queries ...string) ([]gorqlite.WriteResult, error) {
 }
 
 // SetLogger sets the logger for the db
-func (db DBU) SetLogger(w io.Writer) {
+func (db RDB) SetLogger(w io.Writer) {
 	flags := log.Ldate | log.Lmicroseconds | log.Lshortfile
 	db._log = log.New(w, "", flags)
 }
 
 // debugf sends to common log
-func (db DBU) debugf(msg string, args ...interface{}) {
+func (db RDB) debugf(msg string, args ...interface{}) {
 	if db._log != nil {
 		db._log.Printf(msg, args...)
 	}
@@ -62,6 +63,7 @@ func (db DBU) debugf(msg string, args ...interface{}) {
 // DBObject interface provides methods for object storage
 // in an sql database.  The functions are generated for each
 // relevant struct type that are annotated accordingly
+// TODO: consider namespacing these functions to avoid collision
 type DBObject interface {
 	// TableName is the name of the sql table
 	TableName() string
@@ -84,8 +86,8 @@ type DBObject interface {
 	// comprising the primary id
 	KeyFields() []string
 
-	// Names returns the struct element names
-	Names() []string
+	// Elements returns the struct element names
+	Elements() []string
 
 	// SelectFields returns the comma separated
 	// list of fields to be selected
@@ -104,6 +106,10 @@ type DBObject interface {
 	// Receivers  returns a slice of pointers to values
 	// for the db Scan function
 	Receivers() []interface{}
+
+	// SQLCreate returns the string to create a table
+	// representing the struct
+	SQLCreate() string
 }
 
 // prepare item as sql query value
@@ -151,12 +157,32 @@ func insertFields(o DBObject) string {
 	return strings.Join(list, ",")
 }
 
-func setParams(params string) string {
-	list := strings.Split(params, ",")
-	for i, p := range list {
-		list[i] = fmt.Sprintf("%s=?", p)
+//func setParams(fields []string, values []interface{}) string {
+func setParams(o DBObject) string {
+	fields := o.InsertFields()
+	values := o.InsertValues()
+	var buf strings.Builder
+	for i, field := range fields {
+		fmt.Printf("FIELD (%T): %v\n", field, field)
+		//buf.WriteString(field)
+		buf.WriteString("=")
+		switch val := values[i].(type) {
+		case string:
+			buf.WriteByte('\'')
+			buf.WriteString(val)
+			buf.WriteByte('\'')
+		case int:
+			buf.WriteString(strconv.Itoa(val))
+		case int64:
+			buf.WriteString(strconv.Itoa(int(val)))
+		case time.Time:
+			buf.WriteString(strconv.Itoa(int(val.Unix())))
+		default:
+			panic(fmt.Sprintf("unknown type: %T (%v)\n", val, val))
+
+		}
 	}
-	return strings.Join(list, ",")
+	return buf.String()
 }
 
 func replaceQuery(o DBObject) string {
@@ -167,7 +193,7 @@ func replaceQuery(o DBObject) string {
 func updateQuery(o DBObject) string {
 	fmt.Println("fix the 'set' part of the update statement")
 	if id, ok := o.Primary(); ok {
-		return fmt.Sprintf("update %s set %s where %s=%d", o.TableName(), setParams(insertFields(o)), o.KeyFields()[0], id)
+		return fmt.Sprintf("update %s set %s where %s=%d", o.TableName(), setParams(o), o.KeyFields()[0], id)
 	}
 	values := o.KeyValues()
 	var where strings.Builder
@@ -187,7 +213,7 @@ func updateQuery(o DBObject) string {
 		}
 	}
 
-	return fmt.Sprintf("update %s set %s where %s", o.TableName(), setParams(insertFields(o)), where.String())
+	return fmt.Sprintf("update %s set %s where %s", o.TableName(), setParams(o), where.String())
 }
 
 func deleteQuery(o DBObject, key int64) string {
@@ -235,7 +261,7 @@ func upsertQuery(o DBObject) string {
 }
 
 // Add new object to datastore
-func (db DBU) Add(o DBObject) error {
+func (db RDB) Add(o DBObject) error {
 	query := upsertQuery(o)
 	results, err := db.Write(query)
 	if err != nil {
@@ -252,7 +278,7 @@ func (db DBU) Add(o DBObject) error {
 }
 
 // Update saves a modified object in the datastore
-func (db DBU) Update(o DBObject) error {
+func (db RDB) Update(o DBObject) error {
 	query := upsertQuery(o)
 	results, err := db.Write(query)
 	for _, result := range results {
@@ -272,7 +298,7 @@ func (db DBU) Update(o DBObject) error {
 }
 
 // Delete object from datastore
-func (db DBU) Delete(o DBObject) error {
+func (db RDB) Delete(o DBObject) error {
 	if id, ok := o.Primary(); ok {
 		return db.DeleteByID(o, id)
 	}
@@ -280,7 +306,7 @@ func (db DBU) Delete(o DBObject) error {
 }
 
 // DeleteByID object from datastore by id
-func (db DBU) DeleteByID(o DBObject, id int64) error {
+func (db RDB) DeleteByID(o DBObject, id int64) error {
 	query := deleteQuery(o, id)
 	db.debugf(query)
 	results, err := db.Write(query)
@@ -296,12 +322,12 @@ func (db DBU) DeleteByID(o DBObject, id int64) error {
 }
 
 // DeleteAll deletes all objects of that type from the datastore
-func (db DBU) DeleteAll(o DBObject) error {
+func (db RDB) DeleteAll(o DBObject) error {
 	return db.DeleteByID(o, 0)
 }
 
 // Load loads an object matching the given keys
-func (db DBU) Load(o DBObject, keys map[string]interface{}) error {
+func (db RDB) Load(o DBObject, keys map[string]interface{}) error {
 	where := make([]string, 0, len(keys))
 	for k, v := range keys {
 		where = append(where, fmt.Sprintf("%s=%v", k, v))
@@ -312,7 +338,7 @@ func (db DBU) Load(o DBObject, keys map[string]interface{}) error {
 }
 
 // LoadBy loads an  object matching the given key/value
-func (db DBU) LoadBy(o DBObject, key string, value interface{}) error {
+func (db RDB) LoadBy(o DBObject, key string, value interface{}) error {
 	var text, query string
 	switch value := value.(type) {
 	case string:
@@ -329,7 +355,7 @@ func (db DBU) LoadBy(o DBObject, key string, value interface{}) error {
 }
 
 // LoadByID loads an object based on a given int64 primary ID
-func (db DBU) LoadByID(o DBObject, id int64) error {
+func (db RDB) LoadByID(o DBObject, id int64) error {
 	const text = "select %s from %s where %s=%d"
 	if id, ok := o.Primary(); ok {
 		return db.LoadBy(o, o.KeyFields()[0], id)
@@ -339,7 +365,7 @@ func (db DBU) LoadByID(o DBObject, id int64) error {
 }
 
 // LoadSelf loads an object based on it's current ID
-func (db DBU) LoadSelf(o DBObject) error {
+func (db RDB) LoadSelf(o DBObject) error {
 	if id, ok := o.Primary(); ok {
 		return db.LoadBy(o, o.KeyFields()[0], id)
 	}
@@ -385,12 +411,12 @@ func typeinfo(list ...interface{}) string {
 }
 
 // List objects from datastore
-func (db DBU) List(list DBList) error {
+func (db RDB) List(list DBList) error {
 	return db.ListQuery(list, "")
 }
 
 // ListQuery updates a list of objects
-func (db DBU) ListQuery(list DBList, where string) error {
+func (db RDB) ListQuery(list DBList, where string) error {
 	query := list.SQLGet(where)
 	results, err := db.dbs.Query([]string{query})
 	if err != nil {
@@ -417,7 +443,7 @@ func (db DBU) ListQuery(list DBList, where string) error {
 }
 
 // get is the low level db wrapper
-func (db DBU) get(receivers []interface{}, query string) error {
+func (db RDB) get(receivers []interface{}, query string) error {
 	db.debugf("get query:%s\n", query)
 	result, err := db.dbs.QueryOne(query)
 	if err != nil {
@@ -430,13 +456,13 @@ func (db DBU) get(receivers []interface{}, query string) error {
 	return nil
 }
 
-// NewRqlite returns a DBU connected to a rqlite cluster
-func NewRqlite(host string, logger, trace io.Writer) (DBU, error) {
+// NewRqlite returns a RDB connected to a rqlite cluster
+func NewRqlite(host string, logger, trace io.Writer) (RDB, error) {
 	conn, err := gorqlite.Open(host)
 	if logger == nil {
 		logger = ioutil.Discard
 	}
-	dbu := DBU{_log: log.New(logger, "", 0)}
+	dbu := RDB{_log: log.New(logger, "", 0)}
 	if err == nil {
 		if trace != nil {
 			gorqlite.TraceOn(trace)
