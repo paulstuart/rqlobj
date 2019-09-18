@@ -74,8 +74,9 @@ var (
 )
 
 const (
-	ignore     = "github.com/paulstuart/rqlobj.DBObject"
-	tagDefault = "sql"
+	generatedFile = "db_generated.go"
+	ignore        = "github.com/paulstuart/rqlobj.DBObject"
+	tagDefault    = "sql"
 )
 
 // Usage is a replacement usage function for the flags package.
@@ -107,7 +108,6 @@ Flags:
 type SQLInfo struct {
 	Name      string              // type name
 	Table     string              // sql table
-	Keys      map[int]string      // map of struct tag key fields, map index is key order
 	KeyNames  []string            // member name for key
 	KeyFields []string            // sql field for key
 	UserField string              // sql field for user id
@@ -167,8 +167,7 @@ func main() {
 	// Write to file.
 	outputName := *output
 	if outputName == "" {
-		baseName := "db_generated.go"
-		outputName = filepath.Join(dir, strings.ToLower(baseName))
+		outputName = filepath.Join(dir, generatedFile)
 	}
 	err := ioutil.WriteFile(outputName, src, 0644)
 	if err != nil {
@@ -265,7 +264,7 @@ func (g *Generator) parsePackage(directory string, names []string, text interfac
 			continue
 		}
 		parsedFile, err := parser.ParseFile(fs, name, text, 0)
-		if err != nil && name != "db_generated.go" {
+		if err != nil && name != generatedFile {
 			log.Fatalf("parsing package: %s: %s", name, err)
 		}
 		astFiles = append(astFiles, parsedFile)
