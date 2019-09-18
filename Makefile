@@ -65,7 +65,7 @@ escape:
 	@go build -gcflags '-m' db.go lite.go table.go
 
 test:
-	http_proxy=http://localhost:8888/ go test ./... $@
+	http_proxy=http://localhost:8888/ go test ./... $(GO_TEST)
 
 get:
 	@go get -v -u -t ./...
