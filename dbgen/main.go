@@ -5,8 +5,9 @@
 
 // Adapted from golang.org/x/tools/cmd/stringer/stringer.go
 
-// dbgen is a tool to automate the creation of create/update/delete methods that
-// satisfy the github.com/paulstuart/dbobj.DBObject interface.
+// dbgen is a tool to automate the creation of CRUD methods
+// (create/update/delete) that satisfy the DBObject interface
+// in github.com/paulstuart/rqlobj.
 //
 // For example, given this snippet,
 //
@@ -70,7 +71,9 @@ import (
 var (
 	tagName   = flag.String("tag", tagDefault, "the tag used to annotate structs")
 	typeNames = flag.String("type", "", "comma-separated list of type names; leave blank for all")
-	output    = flag.String("output", "", "output file name; default srcdir/db_wrapper.go")
+	output    = flag.String("output", "", "output file name; default is "+generatedFile)
+	prefix    = flag.String("prefix", "", "only convert types with the given prefix")
+	verbose   = flag.Bool("verbose", false, "show processing info")
 )
 
 const (
@@ -263,6 +266,7 @@ func (g *Generator) parsePackage(directory string, names []string, text interfac
 		if !strings.HasSuffix(name, ".go") {
 			continue
 		}
+		status("evaluating file: %s\n", name)
 		parsedFile, err := parser.ParseFile(fs, name, text, 0)
 		if err != nil && name != generatedFile {
 			log.Fatalf("parsing package: %s: %s", name, err)
@@ -357,10 +361,22 @@ func (g *Generator) format() []byte {
 	return src
 }
 
+func status(msg string, args ...interface{}) {
+	if *verbose {
+		log.Printf(msg, args...)
+	}
+}
+
 //
 // Parse the tags, build tables of the metadata
 //
 func sqlTags(typeName string, fields *ast.FieldList) *SQLInfo {
+	if *prefix != "" && !strings.HasPrefix(typeName, *prefix) {
+		const msg = "skipping type %q as it does not have prefix: %q\n"
+		status(msg, typeName, *prefix)
+		return nil
+	}
+	status("evaluating type %q for sql tags\n", typeName)
 	info := SQLInfo{
 		Fields:   make(map[string]string), // [memberName]sqlName
 		Order:    make([]string, 0, len(fields.List)),
