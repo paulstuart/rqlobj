@@ -120,6 +120,7 @@ type SQLInfo struct {
 	Fields    map[string]string   // map of struct tag to column name
 	NoUpdate  map[string]struct{} // set of fields that should not be updated
 	Primary   bool                // there is one key and it is an int64
+	FK        map[string]string   // foreign key: field -> table(field)
 }
 
 func main() {
@@ -376,15 +377,21 @@ func sqlTags(typeName string, fields *ast.FieldList) *SQLInfo {
 		status(msg, typeName, *prefix)
 		return nil
 	}
+	if typeName == "" {
+		status("skipping blank type name")
+		return nil
+	}
 	status("evaluating type %q for sql tags\n", typeName)
 	info := SQLInfo{
 		Fields:   make(map[string]string), // [memberName]sqlName
 		Order:    make([]string, 0, len(fields.List)),
 		NoUpdate: make(map[string]struct{}),
+		FK:       make(map[string]string),
 	}
 	good := false
 	for _, field := range fields.List {
 		if t := field.Tag; t != nil {
+			name := string(field.Names[0].Name)
 			s := string(t.Value)
 			// the code uses backticks to metaquote, need to strip them whilst evaluating
 			tag := reflect.StructTag(s[1 : len(s)-1])
@@ -414,6 +421,8 @@ func sqlTags(typeName string, fields *ast.FieldList) *SQLInfo {
 					if *tagName == tagDefault {
 						if parts[1] == "key" {
 							hasKey = true
+							const msg = "type: %s field: %s has is a key\n"
+							status(msg, name, sql)
 						} else {
 							log.Println("invalid option following field name:", parts[1])
 							// TODO: any more effort to transmit the error? Panic?
@@ -435,18 +444,26 @@ func sqlTags(typeName string, fields *ast.FieldList) *SQLInfo {
 						} else {
 							// more than one complicates things
 							info.Primary = false
+							const msg = "type: %s field: %s -- breaks prior primary key\n"
+							status(msg, name, sql)
 						}
 					} else {
 						info.Primary = false
 					}
-					info.KeyNames = append(info.KeyNames, string(field.Names[0].Name))
+					info.KeyNames = append(info.KeyNames, name)
 					info.KeyFields = append(info.KeyFields, sql)
 					// TODO: is NoUpdate simply the intersection of keys & selects?
 					info.NoUpdate[sql] = struct{}{}
 				} else {
-					info.Fields[field.Names[0].Name] = sql
-					info.Order = append(info.Order, field.Names[0].Name)
+					info.Fields[name] = sql
+					info.Order = append(info.Order, name)
 					//info.Types = append(info.Types, field.Type)
+				}
+				// look for foreign key declarations
+				if fk := tag.Get("fk"); fk != "" {
+					const msg = "type: %s field: %s has foreign key: %s\n"
+					status(msg, name, sql, fk)
+					info.FK[sql] = fk
 				}
 				good = true
 			}
@@ -534,6 +551,7 @@ func (g *Generator) buildWrappers(s *SQLInfo) {
 		g.Printf(metaSetNo, s.Name)
 	}
 
+	status("%s uses table %s\n", s.Name, s.Table)
 	g.Printf(metaSQLGet, s.Name, s.Table, strings.Join(sql, ","))
 	g.Printf(metaSQLResults, s.Name, s.Table)
 	g.Printf(metaTableName, s.Name, s.Table)
@@ -547,7 +565,7 @@ func (g *Generator) buildWrappers(s *SQLInfo) {
 
 	// TODO: add support for default values <======================================================= SOON!
 
-	g.Printf(metaSQLCreate, s.Name, s.Table, rowString(sql, s.Types, keyField, s.Primary), "`")
+	g.Printf(metaSQLCreate, s.Name, s.Table, rowString(sql, s.Types, keyField, s.FK, s.Primary), "`")
 }
 
 // TODO: apply this struct for enhanced table generation
@@ -559,7 +577,7 @@ type Field struct {
 
 // convert a list of column defs to a string
 // TODO: generate indexes for tables with multiple keys
-func rowString(fields, types []string, keys map[string]struct{}, primary bool) string {
+func rowString(fields, types []string, keys map[string]struct{}, fk map[string]string, primary bool) string {
 	var buf strings.Builder
 	if len(fields) != len(types) {
 		const msg = "slice sizes don't match for fields:%d -- types:%d\n"
@@ -578,8 +596,16 @@ func rowString(fields, types []string, keys map[string]struct{}, primary bool) s
 				buf.WriteString(" primary key")
 			}
 		}
+		// foreign key support:
+		// fieldName fieldType  REFERENCES artist(artistid) ON UPDATE CASCADE;
+		if ref, ok := fk[field]; ok {
+			status("field: %s applying fk: %s\n", field, ref)
+			buf.WriteString(" REFERENCES ")
+			buf.WriteString(ref)
+			buf.WriteString(" ON UPDATE CASCADE")
+		}
+
 	}
-	//buf.WriteString("\n")
 	return buf.String()
 }
 
@@ -842,8 +868,8 @@ const metaSQLCreate = `
 // SQLCreate returns a query to create a table for the object
 func (o *%[1]s) SQLCreate() string {
 	return %[4]screate table if not exists %[2]s (
-	%[3]s
-	);%[4]s
+%[3]s
+);%[4]s
 }
 
 `
