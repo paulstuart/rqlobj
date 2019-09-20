@@ -821,9 +821,9 @@ const metaPrimaryInvalid = `func (o *%[1]s) Primary() (int64, bool) {
 //			 1	 2	  3			  4
 const metaSQLGet = `
 
-type _%[1]s []%[1]s
+type %[1]ss []%[1]s
 
-func (o *_%[1]s) SQLGet(extra string) string {
+func (o *%[1]ss) SQLGet(extra string) string {
 	return "select %[3]s from %[2]s " + extra + ";"
 }
 
@@ -845,7 +845,7 @@ func (o *_%[1]s) SQLGet(extra string) string {
 const metaSQLResults = `
 
 // SQLResults takes the equivalent of the Scan function in database/sql
-func (o *_%[1]s) SQLResults(fn func(...interface{}) error) error {
+func (o *%[1]ss) SQLResults(fn func(...interface{}) error) error {
 	var add %[1]s
 	if err := fn((&add).Receivers()...); err != nil {
 	    return err

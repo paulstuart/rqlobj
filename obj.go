@@ -22,6 +22,9 @@ var (
 	// ErrKeyMissing is returned when key value is not set
 	ErrKeyMissing = errors.New("key is not set")
 
+	// ErrNotFound is returned when query returns no rows
+	ErrNotFound = errors.New("not found")
+
 	singleQuote = regexp.MustCompile("'")
 )
 
@@ -464,7 +467,7 @@ func (db RDB) get(receivers []interface{}, query string) error {
 	if result.Next() {
 		return result.Scan(receivers...)
 	}
-	return nil
+	return ErrNotFound
 }
 
 // NewRqlite returns a RDB connected to a rqlite cluster

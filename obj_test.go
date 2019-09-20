@@ -29,6 +29,12 @@ type testStruct struct {
 	anint    int
 }
 
+func init() {
+	// *** for now ***
+	// make sure proxy is set up (rqlite is inside docker)
+	os.Setenv("http_proxy", "http://localhost:8888/")
+}
+
 func (s *testStruct) equal(other *testStruct) error {
 	if s.ID != other.ID {
 		return fmt.Errorf("New ID: %d doesn't match orig: %d\n", other.ID, s.ID)
@@ -42,7 +48,8 @@ func (s *testStruct) equal(other *testStruct) error {
 	if s.Data != other.Data {
 		return fmt.Errorf("New Data: %s doesn't match orig: %s\n", other.Data, s.Data)
 	}
-	if s.Modified.UTC().Truncate(time.Second) != other.Modified.UTC().Truncate(time.Second) {
+	const within = time.Second * 2
+	if s.Modified.UTC().Truncate(within) != other.Modified.UTC().Truncate(within) {
 		return fmt.Errorf("New Modified: %s doesn't match orig: %s\n", other.Modified, s.Modified)
 	}
 	return nil
@@ -181,7 +188,6 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-/*
 func TestLoadBy(t *testing.T) {
 	db := structDb(t)
 	s := &testStruct{
@@ -192,11 +198,21 @@ func TestLoadBy(t *testing.T) {
 	if err := db.Add(s); err != nil {
 		t.Fatal(err)
 	}
+	if s.ID == 0 {
+		t.Fatal("primary ID not created")
+	}
 	f := &testStruct{
 		ID: s.ID,
 	}
-	if err := db.LoadBy(f, s.KeyFields(), f.ID); err != nil {
+	// verify we can load what was saved
+	if err := db.LoadBy(f, s.KeyFields()[0], f.ID); err != nil {
 		t.Error(err)
+	}
+	// verify we don't load what doesn't exist
+	if err := db.LoadBy(f, s.KeyFields()[0], -12345); err == nil {
+		t.Fatal("expected error but there was none")
+	} else {
+		t.Logf("got expected error: %v\n", err)
 	}
 	t.Log("BY ID", f)
 	u := testStruct{}
@@ -208,9 +224,7 @@ func TestLoadBy(t *testing.T) {
 		t.Error(err)
 	}
 }
-*/
 
-/*
 func TestSelf(t *testing.T) {
 	db := structDb(t)
 	s := testStruct{ID: 1}
@@ -219,7 +233,6 @@ func TestSelf(t *testing.T) {
 	}
 	t.Log("BY SELF", s)
 }
-*/
 
 var testData = "lorem ipsum"
 
